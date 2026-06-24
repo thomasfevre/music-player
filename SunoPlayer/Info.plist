@@ -6,6 +6,10 @@
 	<key>CFBundleDisplayName</key>
 	<string>Music Player</string>
 
+	<!-- App uses no non-exempt encryption (no network, standard APIs only) -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
 	<!-- Required for background audio playback -->
 	<key>UIBackgroundModes</key>
 	<array>
