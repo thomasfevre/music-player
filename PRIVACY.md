@@ -26,4 +26,4 @@ The app collects no data from anyone, including children.
 If this policy ever changes, the updated version will be posted at this URL.
 
 ## Contact
-Questions: <your-email@example.com>   <!-- replace with your support email -->
+Questions: open an issue at https://github.com/thomasfevre/music-player/issues
