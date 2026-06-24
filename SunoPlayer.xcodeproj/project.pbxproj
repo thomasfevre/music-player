@@ -1,0 +1,523 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		02CB9AC69E3C75E816AA9266 /* DurationFormatterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE2577A3583A2370243F15B2 /* DurationFormatterTests.swift */; };
+		05B799F649F4E0A9AEC76CDE /* DurationFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFB30433E52067C0A94E4C13 /* DurationFormatter.swift */; };
+		0E490704AD38FDD80C3D9150 /* Track.swift in Sources */ = {isa = PBXBuildFile; fileRef = 441814479462A31D490B700F /* Track.swift */; };
+		1B8DB7EFC7BE624195A42F84 /* AudioPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBC67E6E8AB0749E65212B4E /* AudioPolicyTests.swift */; };
+		2DB57423E6DF252A9F8518EE /* PlaybackQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C3F76B986C916C2D583B0B5 /* PlaybackQueueTests.swift */; };
+		523564AB16D3F3D157B83274 /* TrackQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE458F1CF1E8BEAC31A1F16A /* TrackQuery.swift */; };
+		5BEC7F2F729577842DCBA058 /* TrackRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73F6895BA3645A538D021863 /* TrackRowView.swift */; };
+		5D75B9323475DB5635C3DC46 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 5847FCB0C622FE5B67EADE79 /* Assets.xcassets */; };
+		5E0C229821FF8F6BEE462800 /* MiniPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47217DE8191FAB74DC182C2F /* MiniPlayerView.swift */; };
+		71508F862803DC5E4FCCDDD9 /* LibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 053A960C6EDBA78F135A947F /* LibraryView.swift */; };
+		7379D3B60225BD90E81921A9 /* MusicLibraryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28F158572BC855DCE8C6B81B /* MusicLibraryManager.swift */; };
+		97F5D5E7BED92941B8170173 /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C352FE32A1AA9982A3230979 /* NowPlayingView.swift */; };
+		9A75AA891F53BCFD73E1AC4F /* PlaybackQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF244D4860CE867D838B6BC /* PlaybackQueue.swift */; };
+		A224D9B96E85CB7F0DB37E1F /* AudioPlayerManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C94D1AA615D5F394895934 /* AudioPlayerManagerTests.swift */; };
+		ABD55CF18611CDB6BB42727B /* AudioPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 351E895140ACE9D7EB9EE29D /* AudioPolicies.swift */; };
+		AEE3A4BAD72DBE526258B088 /* AudioPlayerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3BDFE5CA00D1DFC4E2CCB9 /* AudioPlayerManager.swift */; };
+		D515A6BB346C7E12E2F3AF03 /* TrackQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1AEAEFE076D2A1C6191541F /* TrackQueryTests.swift */; };
+		E0FFF7BDE5D8DF931E5BF44A /* TrackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94F338A1830BCCE4B95E0C09 /* TrackTests.swift */; };
+		E6BD8C7F7925117402960D08 /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 445ACF1C3D300DDC4ACC8FC8 /* TestSupport.swift */; };
+		EBD8831D2D403F103663C482 /* SunoPlayerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1ADD4AE415DA96493F95C36 /* SunoPlayerApp.swift */; };
+		FCB4228CF313C9B83DD7B169 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D29EB2FD234B0FE51A57EBB8 /* ContentView.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		5E520443FF156FF4CD033BB8 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8C38280BF307A91C1C48CF56 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 0723D265A8798E8597CC6896;
+			remoteInfo = SunoPlayer;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		053A960C6EDBA78F135A947F /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
+		072E09C0E0C0B798987BF038 /* SunoPlayerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SunoPlayerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		1F3BDFE5CA00D1DFC4E2CCB9 /* AudioPlayerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerManager.swift; sourceTree = "<group>"; };
+		28F158572BC855DCE8C6B81B /* MusicLibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicLibraryManager.swift; sourceTree = "<group>"; };
+		351E895140ACE9D7EB9EE29D /* AudioPolicies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPolicies.swift; sourceTree = "<group>"; };
+		441814479462A31D490B700F /* Track.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Track.swift; sourceTree = "<group>"; };
+		445ACF1C3D300DDC4ACC8FC8 /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
+		47217DE8191FAB74DC182C2F /* MiniPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniPlayerView.swift; sourceTree = "<group>"; };
+		5847FCB0C622FE5B67EADE79 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		5AF244D4860CE867D838B6BC /* PlaybackQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackQueue.swift; sourceTree = "<group>"; };
+		5C3F76B986C916C2D583B0B5 /* PlaybackQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackQueueTests.swift; sourceTree = "<group>"; };
+		6D4EEF8A9C451F2D243F9E0F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		73F6895BA3645A538D021863 /* TrackRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackRowView.swift; sourceTree = "<group>"; };
+		94F338A1830BCCE4B95E0C09 /* TrackTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackTests.swift; sourceTree = "<group>"; };
+		A1AEAEFE076D2A1C6191541F /* TrackQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackQueryTests.swift; sourceTree = "<group>"; };
+		A3C94D1AA615D5F394895934 /* AudioPlayerManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerManagerTests.swift; sourceTree = "<group>"; };
+		BFB30433E52067C0A94E4C13 /* DurationFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DurationFormatter.swift; sourceTree = "<group>"; };
+		C1ADD4AE415DA96493F95C36 /* SunoPlayerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SunoPlayerApp.swift; sourceTree = "<group>"; };
+		C352FE32A1AA9982A3230979 /* NowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingView.swift; sourceTree = "<group>"; };
+		CBC67E6E8AB0749E65212B4E /* AudioPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPolicyTests.swift; sourceTree = "<group>"; };
+		CE2577A3583A2370243F15B2 /* DurationFormatterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DurationFormatterTests.swift; sourceTree = "<group>"; };
+		D29EB2FD234B0FE51A57EBB8 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		F718F38AB71E3EF3A2F4480E /* SunoPlayer.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = SunoPlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		FE458F1CF1E8BEAC31A1F16A /* TrackQuery.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackQuery.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		2AFDA4FF89BBC173289C7878 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				F718F38AB71E3EF3A2F4480E /* SunoPlayer.app */,
+				072E09C0E0C0B798987BF038 /* SunoPlayerTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		4AA092DF08F03FA46B262773 = {
+			isa = PBXGroup;
+			children = (
+				D89E4DDF0BBEA15D188AC1C0 /* SunoPlayer */,
+				A166B78CB0ECC93E10874A1F /* SunoPlayerTests */,
+				2AFDA4FF89BBC173289C7878 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A0C4617F7D7FD14E1E48F3C0 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				D29EB2FD234B0FE51A57EBB8 /* ContentView.swift */,
+				053A960C6EDBA78F135A947F /* LibraryView.swift */,
+				47217DE8191FAB74DC182C2F /* MiniPlayerView.swift */,
+				C352FE32A1AA9982A3230979 /* NowPlayingView.swift */,
+				73F6895BA3645A538D021863 /* TrackRowView.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A166B78CB0ECC93E10874A1F /* SunoPlayerTests */ = {
+			isa = PBXGroup;
+			children = (
+				A3C94D1AA615D5F394895934 /* AudioPlayerManagerTests.swift */,
+				CBC67E6E8AB0749E65212B4E /* AudioPolicyTests.swift */,
+				CE2577A3583A2370243F15B2 /* DurationFormatterTests.swift */,
+				5C3F76B986C916C2D583B0B5 /* PlaybackQueueTests.swift */,
+				445ACF1C3D300DDC4ACC8FC8 /* TestSupport.swift */,
+				A1AEAEFE076D2A1C6191541F /* TrackQueryTests.swift */,
+				94F338A1830BCCE4B95E0C09 /* TrackTests.swift */,
+			);
+			path = SunoPlayerTests;
+			sourceTree = "<group>";
+		};
+		C70D2AAF7976E75727D5C77D /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				BFB30433E52067C0A94E4C13 /* DurationFormatter.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		D89E4DDF0BBEA15D188AC1C0 /* SunoPlayer */ = {
+			isa = PBXGroup;
+			children = (
+				5847FCB0C622FE5B67EADE79 /* Assets.xcassets */,
+				6D4EEF8A9C451F2D243F9E0F /* Info.plist */,
+				C1ADD4AE415DA96493F95C36 /* SunoPlayerApp.swift */,
+				DE70CE3C2A0706915D643755 /* Managers */,
+				FC45BB701F78DF5965FC45D0 /* Models */,
+				C70D2AAF7976E75727D5C77D /* Utilities */,
+				A0C4617F7D7FD14E1E48F3C0 /* Views */,
+			);
+			path = SunoPlayer;
+			sourceTree = "<group>";
+		};
+		DE70CE3C2A0706915D643755 /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				1F3BDFE5CA00D1DFC4E2CCB9 /* AudioPlayerManager.swift */,
+				28F158572BC855DCE8C6B81B /* MusicLibraryManager.swift */,
+			);
+			path = Managers;
+			sourceTree = "<group>";
+		};
+		FC45BB701F78DF5965FC45D0 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				351E895140ACE9D7EB9EE29D /* AudioPolicies.swift */,
+				5AF244D4860CE867D838B6BC /* PlaybackQueue.swift */,
+				441814479462A31D490B700F /* Track.swift */,
+				FE458F1CF1E8BEAC31A1F16A /* TrackQuery.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		0723D265A8798E8597CC6896 /* SunoPlayer */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 63770C5D14301A1F611355B4 /* Build configuration list for PBXNativeTarget "SunoPlayer" */;
+			buildPhases = (
+				E25DDB8C4B0EA8B6E28118C5 /* Sources */,
+				98A5EE82455D7807AEDDD550 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SunoPlayer;
+			packageProductDependencies = (
+			);
+			productName = SunoPlayer;
+			productReference = F718F38AB71E3EF3A2F4480E /* SunoPlayer.app */;
+			productType = "com.apple.product-type.application";
+		};
+		4EC85EFEE483DAC9F0477AF7 /* SunoPlayerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 58B89EAC1FB47870B31BBB37 /* Build configuration list for PBXNativeTarget "SunoPlayerTests" */;
+			buildPhases = (
+				F0D4F468B63D17B7EBACFD22 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0F8B538527491BC115BE03F9 /* PBXTargetDependency */,
+			);
+			name = SunoPlayerTests;
+			packageProductDependencies = (
+			);
+			productName = SunoPlayerTests;
+			productReference = 072E09C0E0C0B798987BF038 /* SunoPlayerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8C38280BF307A91C1C48CF56 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					0723D265A8798E8597CC6896 = {
+						DevelopmentTeam = VYGBHQ4ZDQ;
+						ProvisioningStyle = Automatic;
+					};
+					4EC85EFEE483DAC9F0477AF7 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = 7C637F42730E38228C9F631A /* Build configuration list for PBXProject "SunoPlayer" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 4AA092DF08F03FA46B262773;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 2AFDA4FF89BBC173289C7878 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				0723D265A8798E8597CC6896 /* SunoPlayer */,
+				4EC85EFEE483DAC9F0477AF7 /* SunoPlayerTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		98A5EE82455D7807AEDDD550 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5D75B9323475DB5635C3DC46 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		E25DDB8C4B0EA8B6E28118C5 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				AEE3A4BAD72DBE526258B088 /* AudioPlayerManager.swift in Sources */,
+				ABD55CF18611CDB6BB42727B /* AudioPolicies.swift in Sources */,
+				FCB4228CF313C9B83DD7B169 /* ContentView.swift in Sources */,
+				05B799F649F4E0A9AEC76CDE /* DurationFormatter.swift in Sources */,
+				71508F862803DC5E4FCCDDD9 /* LibraryView.swift in Sources */,
+				5E0C229821FF8F6BEE462800 /* MiniPlayerView.swift in Sources */,
+				7379D3B60225BD90E81921A9 /* MusicLibraryManager.swift in Sources */,
+				97F5D5E7BED92941B8170173 /* NowPlayingView.swift in Sources */,
+				9A75AA891F53BCFD73E1AC4F /* PlaybackQueue.swift in Sources */,
+				EBD8831D2D403F103663C482 /* SunoPlayerApp.swift in Sources */,
+				0E490704AD38FDD80C3D9150 /* Track.swift in Sources */,
+				523564AB16D3F3D157B83274 /* TrackQuery.swift in Sources */,
+				5BEC7F2F729577842DCBA058 /* TrackRowView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F0D4F468B63D17B7EBACFD22 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A224D9B96E85CB7F0DB37E1F /* AudioPlayerManagerTests.swift in Sources */,
+				1B8DB7EFC7BE624195A42F84 /* AudioPolicyTests.swift in Sources */,
+				02CB9AC69E3C75E816AA9266 /* DurationFormatterTests.swift in Sources */,
+				2DB57423E6DF252A9F8518EE /* PlaybackQueueTests.swift in Sources */,
+				E6BD8C7F7925117402960D08 /* TestSupport.swift in Sources */,
+				D515A6BB346C7E12E2F3AF03 /* TrackQueryTests.swift in Sources */,
+				E0FFF7BDE5D8DF931E5BF44A /* TrackTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0F8B538527491BC115BE03F9 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 0723D265A8798E8597CC6896 /* SunoPlayer */;
+			targetProxy = 5E520443FF156FF4CD033BB8 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1E5AA798733E3C3D794BD589 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = VYGBHQ4ZDQ;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SunoPlayer/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.thomas.sunoplayer;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		51D88C38D5EA6260F8AC11A5 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		7CD5A2B93BFF8BC122DB2ED2 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS = NO;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = VYGBHQ4ZDQ;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = SunoPlayer/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.thomas.sunoplayer;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		C2292EE5AAC60D5AB2CC1796 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.thomas.sunoplayer.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SunoPlayer.app/SunoPlayer";
+			};
+			name = Release;
+		};
+		EBBD39DF70EAF27439C14669 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.thomas.sunoplayer.tests;
+				SDKROOT = iphoneos;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/SunoPlayer.app/SunoPlayer";
+			};
+			name = Debug;
+		};
+		F0C12D50C204FF409BCECE5C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				CURRENT_PROJECT_VERSION = 1;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		58B89EAC1FB47870B31BBB37 /* Build configuration list for PBXNativeTarget "SunoPlayerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				EBBD39DF70EAF27439C14669 /* Debug */,
+				C2292EE5AAC60D5AB2CC1796 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		63770C5D14301A1F611355B4 /* Build configuration list for PBXNativeTarget "SunoPlayer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1E5AA798733E3C3D794BD589 /* Debug */,
+				7CD5A2B93BFF8BC122DB2ED2 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		7C637F42730E38228C9F631A /* Build configuration list for PBXProject "SunoPlayer" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				51D88C38D5EA6260F8AC11A5 /* Debug */,
+				F0C12D50C204FF409BCECE5C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 8C38280BF307A91C1C48CF56 /* Project object */;
+}
