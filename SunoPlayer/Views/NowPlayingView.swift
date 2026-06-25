@@ -358,8 +358,23 @@ struct NowPlayingView: View {
             Image(systemName: "speaker.fill")
                 .font(.system(size: 12))
                 .foregroundColor(.white.opacity(0.45))
+            #if targetEnvironment(simulator)
+            // MPVolumeView is inert in the Simulator; show a representative slider so
+            // App Store screenshots captured there render a real-looking volume control.
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(.white.opacity(0.15)).frame(height: 4)
+                    Capsule().fill(accentColor).frame(width: geo.size.width * 0.7, height: 4)
+                    Circle().fill(.white).frame(width: 14, height: 14)
+                        .offset(x: geo.size.width * 0.7 - 7)
+                }
+                .frame(maxHeight: .infinity, alignment: .center)
+            }
+            .frame(height: 28)
+            #else
             SystemVolumeSlider(tint: accentColor)
                 .frame(height: 28)
+            #endif
             Image(systemName: "speaker.wave.3.fill")
                 .font(.system(size: 12))
                 .foregroundColor(.white.opacity(0.45))
