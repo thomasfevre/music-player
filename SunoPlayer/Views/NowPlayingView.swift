@@ -7,10 +7,6 @@ struct NowPlayingView: View {
     @EnvironmentObject var player: AudioPlayerManager
     @Binding var isPresented: Bool
 
-    // Drag-to-dismiss gesture
-    @State private var dragOffset: CGFloat = 0
-    @State private var isDragging = false
-
     // Animated gradient hue shift
     @State private var gradientPhase: Double = 0
 
@@ -65,6 +61,10 @@ struct NowPlayingView: View {
                         playbackControls
                             .padding(.horizontal, 24)
 
+                        // Volume
+                        volumeBar
+                            .padding(.horizontal, 32)
+
                         // Secondary controls (shuffle, repeat, queue)
                         secondaryControls
                             .padding(.horizontal, 32)
@@ -73,26 +73,10 @@ struct NowPlayingView: View {
                 }
             }
         }
-        // Drag-to-dismiss
-        .offset(y: dragOffset)
-        .gesture(
-            DragGesture()
-                .onChanged { value in
-                    if value.translation.height > 0 {
-                        dragOffset = value.translation.height
-                        isDragging = true
-                    }
-                }
-                .onEnded { value in
-                    if value.translation.height > 120 {
-                        isPresented = false
-                    }
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.8)) {
-                        dragOffset = 0
-                    }
-                    isDragging = false
-                }
-        )
+        // Native interactive swipe-down dismiss from anywhere (sheet presentation).
+        .presentationDetents([.large])
+        .presentationDragIndicator(.hidden)
+        .presentationBackground(.black)
         .onAppear {
             withAnimation(.linear(duration: 6).repeatForever(autoreverses: true)) {
                 gradientPhase = 1.0
@@ -365,6 +349,20 @@ struct NowPlayingView: View {
                 UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
                 player.next()
             }
+        }
+    }
+
+    // MARK: - Volume
+    private var volumeBar: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "speaker.fill")
+                .font(.system(size: 12))
+                .foregroundColor(.white.opacity(0.45))
+            SystemVolumeSlider(tint: accentColor)
+                .frame(height: 28)
+            Image(systemName: "speaker.wave.3.fill")
+                .font(.system(size: 12))
+                .foregroundColor(.white.opacity(0.45))
         }
     }
 

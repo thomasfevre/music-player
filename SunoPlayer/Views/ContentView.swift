@@ -38,7 +38,7 @@ struct ContentView: View {
                 player.saveStateNow()
             }
         }
-        .fullScreenCover(isPresented: $showNowPlaying) {
+        .sheet(isPresented: $showNowPlaying) {
             NowPlayingView(isPresented: $showNowPlaying)
                 .environmentObject(library)
                 .environmentObject(player)

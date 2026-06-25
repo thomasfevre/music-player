@@ -27,6 +27,7 @@
 		A224D9B96E85CB7F0DB37E1F /* AudioPlayerManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C94D1AA615D5F394895934 /* AudioPlayerManagerTests.swift */; };
 		ABD55CF18611CDB6BB42727B /* AudioPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 351E895140ACE9D7EB9EE29D /* AudioPolicies.swift */; };
 		AEE3A4BAD72DBE526258B088 /* AudioPlayerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3BDFE5CA00D1DFC4E2CCB9 /* AudioPlayerManager.swift */; };
+		C8049EB8B819CAF691C7A9F6 /* SystemVolumeSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220F49AAEBE1A64099F32525 /* SystemVolumeSlider.swift */; };
 		CF6B16EC6FF8583FD61F669E /* PlaylistsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A700687071CBF39665BABB9 /* PlaylistsView.swift */; };
 		D515A6BB346C7E12E2F3AF03 /* TrackQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1AEAEFE076D2A1C6191541F /* TrackQueryTests.swift */; };
 		E0FFF7BDE5D8DF931E5BF44A /* TrackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94F338A1830BCCE4B95E0C09 /* TrackTests.swift */; };
@@ -52,6 +53,7 @@
 		072E09C0E0C0B798987BF038 /* SunoPlayerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SunoPlayerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1A700687071CBF39665BABB9 /* PlaylistsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistsView.swift; sourceTree = "<group>"; };
 		1F3BDFE5CA00D1DFC4E2CCB9 /* AudioPlayerManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerManager.swift; sourceTree = "<group>"; };
+		220F49AAEBE1A64099F32525 /* SystemVolumeSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemVolumeSlider.swift; sourceTree = "<group>"; };
 		28F158572BC855DCE8C6B81B /* MusicLibraryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicLibraryManager.swift; sourceTree = "<group>"; };
 		351E895140ACE9D7EB9EE29D /* AudioPolicies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPolicies.swift; sourceTree = "<group>"; };
 		441814479462A31D490B700F /* Track.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Track.swift; sourceTree = "<group>"; };
@@ -108,6 +110,7 @@
 				47217DE8191FAB74DC182C2F /* MiniPlayerView.swift */,
 				C352FE32A1AA9982A3230979 /* NowPlayingView.swift */,
 				1A700687071CBF39665BABB9 /* PlaylistsView.swift */,
+				220F49AAEBE1A64099F32525 /* SystemVolumeSlider.swift */,
 				73F6895BA3645A538D021863 /* TrackRowView.swift */,
 			);
 			path = Views;
@@ -283,6 +286,7 @@
 				EF9D1743896F2B2014F07300 /* PlaylistManager.swift in Sources */,
 				CF6B16EC6FF8583FD61F669E /* PlaylistsView.swift in Sources */,
 				EBD8831D2D403F103663C482 /* SunoPlayerApp.swift in Sources */,
+				C8049EB8B819CAF691C7A9F6 /* SystemVolumeSlider.swift in Sources */,
 				0E490704AD38FDD80C3D9150 /* Track.swift in Sources */,
 				523564AB16D3F3D157B83274 /* TrackQuery.swift in Sources */,
 				5BEC7F2F729577842DCBA058 /* TrackRowView.swift in Sources */,

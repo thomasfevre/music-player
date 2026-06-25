@@ -33,7 +33,9 @@ struct LibraryView: View {
             }
             .navigationTitle("Music Player")
             .navigationBarTitleDisplayMode(.large)
-            .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
+            // Keep the header light on scroll: no nav-bar background. The search field keeps
+            // its own liquid-glass material.
+            .toolbarBackground(.hidden, for: .navigationBar)
             .toolbar { toolbarItems }
             .searchable(
                 text: $library.searchText,
