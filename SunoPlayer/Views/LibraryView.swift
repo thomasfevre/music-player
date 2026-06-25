@@ -6,11 +6,13 @@ import UniformTypeIdentifiers
 struct LibraryView: View {
     @EnvironmentObject var library: MusicLibraryManager
     @EnvironmentObject var player: AudioPlayerManager
+    @EnvironmentObject var playlists: PlaylistManager
 
     @Binding var showNowPlaying: Bool
 
     @State private var showFilePicker = false
     @State private var showSortMenu = false
+    @State private var showPlaylists = false
 
     // Bottom padding when mini player is visible
     private var listBottomPadding: CGFloat {
@@ -33,7 +35,11 @@ struct LibraryView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbarBackground(.ultraThinMaterial, for: .navigationBar)
             .toolbar { toolbarItems }
-            .searchable(text: $library.searchText, prompt: "Search tracks…")
+            .searchable(
+                text: $library.searchText,
+                placement: .navigationBarDrawer(displayMode: .always),
+                prompt: "Search tracks…"
+            )
             .fileImporter(
                 isPresented: $showFilePicker,
                 allowedContentTypes: [.audio, .mp3, .mpeg4Audio],
@@ -42,6 +48,12 @@ struct LibraryView: View {
                 if case .success(let urls) = result {
                     library.importTracks(from: urls)
                 }
+            }
+            .sheet(isPresented: $showPlaylists) {
+                PlaylistsView()
+                    .environmentObject(playlists)
+                    .environmentObject(library)
+                    .environmentObject(player)
             }
         }
     }
@@ -70,12 +82,36 @@ struct LibraryView: View {
                             Label(fav ? "Remove from Favorites" : "Add to Favorites",
                                   systemImage: fav ? "heart.slash" : "heart")
                         }
+                        Menu {
+                            ForEach(playlists.playlists) { playlist in
+                                Button {
+                                    if playlist.contains(track.id) {
+                                        playlists.removeTrack(track.id, from: playlist)
+                                    } else {
+                                        playlists.addTrack(track.id, to: playlist)
+                                    }
+                                } label: {
+                                    Label(playlist.name,
+                                          systemImage: playlist.contains(track.id) ? "checkmark" : "music.note.list")
+                                }
+                            }
+                            Divider()
+                            Button {
+                                let created = playlists.createPlaylist(name: "New Playlist")
+                                playlists.addTrack(track.id, to: created)
+                            } label: {
+                                Label("New Playlist", systemImage: "plus")
+                            }
+                        } label: {
+                            Label("Add to Playlist", systemImage: "text.badge.plus")
+                        }
                         Button(role: .destructive) {
                             // Update the player only after the filesystem delete succeeds,
                             // so the queue can never reference a still-present file (and
                             // vice-versa). Atomic — no rollback needed.
                             if library.deleteTrack(track) {
                                 player.handleTrackDeleted(track)
+                                playlists.removeTrackFromAll(track.id)
                             }
                         } label: {
                             Label("Delete", systemImage: "trash")
@@ -163,6 +199,15 @@ struct LibraryView: View {
     private var toolbarItems: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 16) {
+                // Playlists
+                Button {
+                    showPlaylists = true
+                } label: {
+                    Image(systemName: "music.note.list")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+
                 // Favorites filter toggle
                 Button {
                     library.showFavoritesOnly.toggle()

@@ -5,6 +5,7 @@ import AVFoundation
 struct SunoPlayerApp: App {
     @StateObject private var library = MusicLibraryManager()
     @StateObject private var player = AudioPlayerManager()
+    @StateObject private var playlists = PlaylistManager()
 
     init() {
         configureAudioSession()
@@ -15,6 +16,7 @@ struct SunoPlayerApp: App {
             ContentView()
                 .environmentObject(library)
                 .environmentObject(player)
+                .environmentObject(playlists)
                 .preferredColorScheme(.dark)
         }
     }
