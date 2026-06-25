@@ -7,32 +7,45 @@ struct TrackRowView: View {
     let track: Track
     let isActive: Bool
     let isPlaying: Bool
+    var isFavorite: Bool = false
+
+    @StateObject private var artwork = ArtworkLoader()
 
     var body: some View {
         HStack(spacing: 14) {
             // Artwork thumbnail
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(
-                        LinearGradient(
-                            colors: track.gradientColors,
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                if let image = artwork.image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 54, height: 54)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                } else {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(
+                            LinearGradient(
+                                colors: track.gradientColors,
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
                         )
-                    )
-                    .frame(width: 54, height: 54)
-                    .shadow(color: track.gradientColors[0].opacity(0.5), radius: 8, y: 4)
+                        .frame(width: 54, height: 54)
+                        .shadow(color: track.gradientColors[0].opacity(0.5), radius: 8, y: 4)
+                }
 
                 if isPlaying {
                     // Animated equalizer bars
                     EqualizerBarsView()
                         .frame(width: 24, height: 20)
-                } else {
+                } else if artwork.image == nil {
                     Image(systemName: "music.note")
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(.white.opacity(0.85))
                 }
             }
+            .onAppear { artwork.load(for: track) }
 
             // Title & Artist
             VStack(alignment: .leading, spacing: 3) {
@@ -48,6 +61,12 @@ struct TrackRowView: View {
             }
 
             Spacer()
+
+            if isFavorite {
+                Image(systemName: "heart.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(.pink.opacity(0.85))
+            }
 
             // Duration
             Text(DurationFormatter.format(track.duration))

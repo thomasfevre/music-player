@@ -49,4 +49,30 @@ final class TrackQueryTests: XCTestCase {
         let r = TrackQuery.apply(tracks: sample(), searchText: "", sortOrder: .title)
         XCTAssertEqual(r.map(\.title), ["alpha", "Bohemian Rhapsody", "Zebra"])
     }
+
+    // MARK: - Favorites filtering
+
+    func testNilFavoriteIDsAppliesNoFilter() {
+        let r = TrackQuery.apply(tracks: sample(), searchText: "", sortOrder: .newest, favoriteIDs: nil)
+        XCTAssertEqual(r.count, 3)
+    }
+
+    func testFavoriteIDsRestrictsToFavorites() {
+        let tracks = sample()
+        let favs: Set<UUID> = [tracks[0].id, tracks[2].id]
+        let r = TrackQuery.apply(tracks: tracks, searchText: "", sortOrder: .title, favoriteIDs: favs)
+        XCTAssertEqual(Set(r.map(\.title)), ["Bohemian Rhapsody", "Zebra"])
+    }
+
+    func testEmptyFavoriteIDsReturnsNothing() {
+        let r = TrackQuery.apply(tracks: sample(), searchText: "", sortOrder: .newest, favoriteIDs: [])
+        XCTAssertTrue(r.isEmpty)
+    }
+
+    func testFavoritesAndSearchCombine() {
+        let tracks = sample()
+        let favs: Set<UUID> = [tracks[0].id, tracks[1].id]
+        let r = TrackQuery.apply(tracks: tracks, searchText: "alpha", sortOrder: .newest, favoriteIDs: favs)
+        XCTAssertEqual(r.map(\.title), ["alpha"])
+    }
 }

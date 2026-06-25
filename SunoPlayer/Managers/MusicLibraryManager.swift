@@ -12,9 +12,12 @@ final class MusicLibraryManager: ObservableObject {
     @Published private(set) var isImporting: Bool = false
     @Published var sortOrder: SortOrder = .newest
     @Published var searchText: String = ""
+    @Published var showFavoritesOnly: Bool = false
+    @Published private(set) var favoriteIDs: Set<UUID> = []
 
     // MARK: Persistence
     private let saveFileName = "library.json"
+    private let favoritesKey = "favoriteTrackIDs"
     private var saveURL: URL {
         Track.documentsDirectory.appendingPathComponent(saveFileName)
     }
@@ -22,6 +25,7 @@ final class MusicLibraryManager: ObservableObject {
     // MARK: Init
     init() {
         loadLibrary()
+        loadFavorites()
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("UITEST_SEED") {
             seedDemoLibrary()
@@ -69,7 +73,35 @@ final class MusicLibraryManager: ObservableObject {
 
     // MARK: - Computed: Filtered & Sorted Tracks
     var displayedTracks: [Track] {
-        TrackQuery.apply(tracks: tracks, searchText: searchText, sortOrder: sortOrder)
+        TrackQuery.apply(
+            tracks: tracks,
+            searchText: searchText,
+            sortOrder: sortOrder,
+            favoriteIDs: showFavoritesOnly ? favoriteIDs : nil
+        )
+    }
+
+    // MARK: - Favorites
+    func isFavorite(_ track: Track) -> Bool {
+        favoriteIDs.contains(track.id)
+    }
+
+    func toggleFavorite(_ track: Track) {
+        if favoriteIDs.contains(track.id) {
+            favoriteIDs.remove(track.id)
+        } else {
+            favoriteIDs.insert(track.id)
+        }
+        saveFavorites()
+    }
+
+    private func loadFavorites() {
+        let raw = UserDefaults.standard.stringArray(forKey: favoritesKey) ?? []
+        favoriteIDs = Set(raw.compactMap(UUID.init(uuidString:)))
+    }
+
+    private func saveFavorites() {
+        UserDefaults.standard.set(favoriteIDs.map(\.uuidString), forKey: favoritesKey)
     }
 
     // MARK: - Import
@@ -117,9 +149,13 @@ final class MusicLibraryManager: ObservableObject {
                 }
                 try fm.copyItem(at: url, to: destination)
 
-                let (title, artist, duration) = await extractMetadata(from: destination, fallbackName: fileName)
+                let meta = await extractMetadata(from: destination, fallbackName: fileName)
+                // Drop any stale cache entry before overwriting the artwork file on re-import.
+                await ArtworkLoader.remove(byKey: (fileName as NSString).deletingPathExtension + ".img")
+                let artworkFileName = saveArtwork(meta.artwork, for: fileName, in: docDir, fm: fm)
                 result.append(
-                    Track(title: title, artist: artist, fileName: fileName, duration: duration, dateImported: Date())
+                    Track(title: meta.title, artist: meta.artist, fileName: fileName,
+                          duration: meta.duration, dateImported: Date(), artworkFileName: artworkFileName)
                 )
                 seen.insert(fileName)
             } catch {
@@ -144,7 +180,14 @@ final class MusicLibraryManager: ObservableObject {
                 return false
             }
         }
+        // Clean up the extracted artwork file + its cache entry (best-effort).
+        if let artworkURL = track.artworkURL, fm.fileExists(atPath: artworkURL.path) {
+            try? fm.removeItem(at: artworkURL)
+        }
+        ArtworkLoader.remove(track)
+
         tracks.removeAll { $0.id == track.id }
+        if favoriteIDs.remove(track.id) != nil { saveFavorites() }
         saveLibrary()
         return true
     }
@@ -153,12 +196,13 @@ final class MusicLibraryManager: ObservableObject {
     nonisolated private static func extractMetadata(
         from url: URL,
         fallbackName: String
-    ) async -> (title: String, artist: String?, duration: TimeInterval) {
+    ) async -> (title: String, artist: String?, duration: TimeInterval, artwork: Data?) {
         let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
 
         var duration: TimeInterval = 0
         var title = cleanFileName(fallbackName)
         var artist: String? = nil
+        var artwork: Data? = nil
 
         do {
             let loadedDuration = try await asset.load(.duration).seconds
@@ -173,12 +217,35 @@ final class MusicLibraryManager: ObservableObject {
                 if item.commonKey == .commonKeyArtist, let value = try? await item.load(.stringValue) {
                     artist = value.isEmpty ? nil : value
                 }
+                if item.commonKey == .commonKeyArtwork, let data = try? await item.load(.dataValue), !data.isEmpty {
+                    artwork = data
+                }
             }
         } catch {
             print("Metadata load failed for \(fallbackName): \(error)")
         }
 
-        return (title, artist, duration)
+        return (title, artist, duration, artwork)
+    }
+
+    /// Writes extracted cover art under `Artwork/<base>.img` and returns its file name, or nil.
+    nonisolated private static func saveArtwork(
+        _ data: Data?,
+        for audioFileName: String,
+        in docDir: URL,
+        fm: FileManager
+    ) -> String? {
+        guard let data, !data.isEmpty else { return nil }
+        let artworkName = (audioFileName as NSString).deletingPathExtension + ".img"
+        let artworkDir = docDir.appendingPathComponent("Artwork", isDirectory: true)
+        do {
+            try fm.createDirectory(at: artworkDir, withIntermediateDirectories: true)
+            try data.write(to: artworkDir.appendingPathComponent(artworkName), options: .atomic)
+            return artworkName
+        } catch {
+            print("Failed to save artwork for \(audioFileName): \(error)")
+            return nil
+        }
     }
 
     /// Strips file extension and cleans up underscores/hyphens for display.

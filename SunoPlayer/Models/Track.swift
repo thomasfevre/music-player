@@ -41,6 +41,10 @@ struct Track: Identifiable, Codable, Equatable {
     var duration: TimeInterval
     let dateImported: Date
 
+    /// File name of the embedded cover art extracted at import (stored under `Artwork/`).
+    /// Optional and decoded leniently so libraries saved before this feature still load.
+    var artworkFileName: String?
+
     /// Hue values (0–1) used to procedurally generate a gradient for this track.
     var gradientHue1: Double
     var gradientHue2: Double
@@ -52,11 +56,22 @@ struct Track: Identifiable, Codable, Equatable {
         FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
     }()
 
+    /// Directory holding extracted cover-art images.
+    static let artworkDirectory: URL = {
+        documentsDirectory.appendingPathComponent("Artwork", isDirectory: true)
+    }()
+
     // MARK: Computed
 
     /// Resolved URL from the app's documents directory at runtime.
     var fileURL: URL {
         Self.documentsDirectory.appendingPathComponent(fileName)
+    }
+
+    /// Resolved URL of the extracted cover art, if any.
+    var artworkURL: URL? {
+        guard let artworkFileName else { return nil }
+        return Self.artworkDirectory.appendingPathComponent(artworkFileName)
     }
 
     var displayArtist: String {
@@ -78,6 +93,7 @@ struct Track: Identifiable, Codable, Equatable {
         fileName: String,
         duration: TimeInterval = 0,
         dateImported: Date = Date(),
+        artworkFileName: String? = nil,
         gradientHue1: Double? = nil,
         gradientHue2: Double? = nil
     ) {
@@ -87,6 +103,7 @@ struct Track: Identifiable, Codable, Equatable {
         self.fileName = fileName
         self.duration = duration
         self.dateImported = dateImported
+        self.artworkFileName = artworkFileName
 
         // Derive gradient hues from a stable file-name hash for visual consistency.
         let hue = Self.stableHue(for: fileName)

@@ -54,7 +54,8 @@ struct LibraryView: View {
                     TrackRowView(
                         track: track,
                         isActive: player.currentTrack?.id == track.id,
-                        isPlaying: player.isPlaying && player.currentTrack?.id == track.id
+                        isPlaying: player.isPlaying && player.currentTrack?.id == track.id,
+                        isFavorite: library.isFavorite(track)
                     )
                     .onTapGesture {
                         player.play(track, in: library.displayedTracks)
@@ -62,6 +63,13 @@ struct LibraryView: View {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     }
                     .contextMenu {
+                        Button {
+                            library.toggleFavorite(track)
+                        } label: {
+                            let fav = library.isFavorite(track)
+                            Label(fav ? "Remove from Favorites" : "Add to Favorites",
+                                  systemImage: fav ? "heart.slash" : "heart")
+                        }
                         Button(role: .destructive) {
                             // Update the player only after the filesystem delete succeeds,
                             // so the queue can never reference a still-present file (and
@@ -155,6 +163,15 @@ struct LibraryView: View {
     private var toolbarItems: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 16) {
+                // Favorites filter toggle
+                Button {
+                    library.showFavoritesOnly.toggle()
+                } label: {
+                    Image(systemName: library.showFavoritesOnly ? "heart.fill" : "heart")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(library.showFavoritesOnly ? .pink : .white.opacity(0.8))
+                }
+
                 // Sort menu
                 Menu {
                     ForEach(SortOrder.allCases) { order in

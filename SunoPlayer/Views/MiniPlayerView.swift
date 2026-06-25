@@ -7,6 +7,7 @@ struct MiniPlayerView: View {
     @Binding var showNowPlaying: Bool
 
     @State private var isAnimatingArt = false
+    @StateObject private var artwork = ArtworkLoader()
 
     private var track: Track? { player.currentTrack }
 
@@ -14,29 +15,46 @@ struct MiniPlayerView: View {
         HStack(spacing: 14) {
             // Artwork
             ZStack {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        LinearGradient(
-                            colors: track?.gradientColors ?? [.purple, .blue],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
+                if let image = artwork.image {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFill()
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .shadow(color: .black.opacity(0.4), radius: 8, y: 2)
+                        .scaleEffect(isAnimatingArt && player.isPlaying ? 1.04 : 1.0)
+                        .animation(
+                            player.isPlaying
+                                ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+                                : .default,
+                            value: isAnimatingArt
                         )
-                    )
-                    .frame(width: 44, height: 44)
-                    .shadow(color: (track?.gradientColors.first ?? .purple).opacity(0.5), radius: 8, y: 2)
-                    .scaleEffect(isAnimatingArt && player.isPlaying ? 1.04 : 1.0)
-                    .animation(
-                        player.isPlaying
-                            ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
-                            : .default,
-                        value: isAnimatingArt
-                    )
+                } else {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(
+                            LinearGradient(
+                                colors: track?.gradientColors ?? [.purple, .blue],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 44, height: 44)
+                        .shadow(color: (track?.gradientColors.first ?? .purple).opacity(0.5), radius: 8, y: 2)
+                        .scaleEffect(isAnimatingArt && player.isPlaying ? 1.04 : 1.0)
+                        .animation(
+                            player.isPlaying
+                                ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+                                : .default,
+                            value: isAnimatingArt
+                        )
 
-                Image(systemName: "music.note")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.white.opacity(0.8))
+                    Image(systemName: "music.note")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white.opacity(0.8))
+                }
             }
-            .onAppear { isAnimatingArt = true }
+            .onAppear { isAnimatingArt = true; artwork.load(for: track) }
+            .onChange(of: track?.id) { artwork.load(for: track) }
 
             // Title & Artist
             VStack(alignment: .leading, spacing: 2) {

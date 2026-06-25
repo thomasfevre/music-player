@@ -17,6 +17,8 @@ struct NowPlayingView: View {
     // Seek-bar scrubbing: nil unless the user is actively dragging.
     @State private var scrubProgress: CGFloat?
 
+    @StateObject private var artwork = ArtworkLoader()
+
     private var track: Track? { player.currentTrack }
 
     private var artSize: CGFloat {
@@ -95,7 +97,9 @@ struct NowPlayingView: View {
             withAnimation(.linear(duration: 6).repeatForever(autoreverses: true)) {
                 gradientPhase = 1.0
             }
+            artwork.load(for: track)
         }
+        .onChange(of: track?.id) { artwork.load(for: track) }
     }
 
     // MARK: - Background
@@ -137,7 +141,17 @@ struct NowPlayingView: View {
     // MARK: - Artwork Card
     private var artworkCard: some View {
         ZStack {
-            if let track {
+            if let image = artwork.image {
+                // Real embedded cover art
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+                    .clipShape(RoundedRectangle(cornerRadius: 28))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 28)
+                            .stroke(.white.opacity(0.15), lineWidth: 1)
+                    )
+            } else if let track {
                 // Main gradient artwork
                 RoundedRectangle(cornerRadius: 28)
                     .fill(
@@ -204,11 +218,35 @@ struct NowPlayingView: View {
             }
             Spacer()
 
-            // Heart / favourite (cosmetic for now)
-            Button {} label: {
-                Image(systemName: "heart")
+            // Sleep timer
+            Menu {
+                if let remaining = player.sleepTimerRemaining {
+                    Section("Sleeping in \(DurationFormatter.format(remaining))") {
+                        Button("Cancel Timer", role: .destructive) { player.cancelSleepTimer() }
+                    }
+                }
+                ForEach(SleepTimer.presetMinutes, id: \.self) { minutes in
+                    Button("\(minutes) minutes") { player.startSleepTimer(minutes: minutes) }
+                }
+            } label: {
+                let active = player.sleepTimerRemaining != nil
+                Image(systemName: active ? "moon.fill" : "moon")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(active ? accentColor : .white.opacity(0.45))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+
+            // Heart / favourite
+            Button {
+                guard let track else { return }
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                library.toggleFavorite(track)
+            } label: {
+                let isFavorite = track.map(library.isFavorite) ?? false
+                Image(systemName: isFavorite ? "heart.fill" : "heart")
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(.white.opacity(0.45))
+                    .foregroundColor(isFavorite ? .pink : .white.opacity(0.45))
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
@@ -350,6 +388,29 @@ struct NowPlayingView: View {
                 }
                 .frame(width: 44, height: 44)
                 .contentShape(Rectangle())
+            }
+
+            Spacer()
+
+            // Playback speed
+            Menu {
+                ForEach(PlaybackSpeed.options, id: \.self) { rate in
+                    Button {
+                        player.setPlaybackRate(rate)
+                    } label: {
+                        HStack {
+                            Text(PlaybackSpeed.label(rate))
+                            if player.playbackRate == rate { Image(systemName: "checkmark") }
+                        }
+                    }
+                }
+            } label: {
+                let active = player.playbackRate != PlaybackSpeed.default
+                Text(PlaybackSpeed.label(player.playbackRate))
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(active ? accentColor : .white.opacity(0.45))
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
 
             Spacer()

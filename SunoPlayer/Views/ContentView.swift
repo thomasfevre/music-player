@@ -5,6 +5,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var library: MusicLibraryManager
     @EnvironmentObject var player: AudioPlayerManager
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var showNowPlaying = false
 
@@ -26,8 +27,16 @@ struct ContentView: View {
                let first = library.displayedTracks.first {
                 player.play(first, in: library.displayedTracks)
                 showNowPlaying = true
+                return
             }
             #endif
+            // Restore the last session (paused) so the mini player reappears where we left off.
+            player.restoreLastSession(in: library.tracks)
+        }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background || phase == .inactive {
+                player.saveStateNow()
+            }
         }
         .fullScreenCover(isPresented: $showNowPlaying) {
             NowPlayingView(isPresented: $showNowPlaying)
