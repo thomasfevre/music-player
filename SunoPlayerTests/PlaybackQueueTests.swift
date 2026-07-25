@@ -119,4 +119,57 @@ final class PlaybackQueueTests: XCTestCase {
         XCTAssertEqual(q.previous(currentTime: 0), .none)
         XCTAssertNil(q.currentTrack)
     }
+
+    func testEnqueueNextInsertsAfterCurrentAndDedupes() {
+        let (a, b, c) = makeABC()
+        let d = TestSupport.track(title: "D")
+        var q = PlaybackQueue()
+        q.setQueue([a, b, c], startAt: b)
+
+        q.enqueueNext(d)
+        q.enqueueNext(a)
+        q.enqueueNext(b)
+
+        XCTAssertEqual(q.activeOrder, [b, a, d, c])
+        XCTAssertEqual(q.currentTrack, b)
+    }
+
+    func testEnqueueLaterAppendsAndDedupes() {
+        let (a, b, c) = makeABC()
+        let d = TestSupport.track(title: "D")
+        var q = PlaybackQueue()
+        q.setQueue([a, b, c], startAt: b)
+
+        q.enqueueLater(d)
+        q.enqueueLater(a)
+
+        XCTAssertEqual(q.activeOrder, [b, c, d, a])
+    }
+
+    func testMoveAndRemoveUpcomingDoNotChangeCurrent() {
+        let (a, b, c) = makeABC()
+        let d = TestSupport.track(title: "D")
+        var q = PlaybackQueue()
+        q.setQueue([a, b, c, d], startAt: a)
+
+        q.moveUpcoming(fromOffsets: IndexSet(integer: 2), toOffset: 0)
+        XCTAssertEqual(q.activeOrder, [a, d, b, c])
+        q.removeUpcoming(at: IndexSet(integer: 1))
+
+        XCTAssertEqual(q.activeOrder, [a, d, c])
+        XCTAssertEqual(q.currentTrack, a)
+    }
+
+    func testClearUpcomingKeepsHistoryAndCurrent() {
+        let (a, b, c) = makeABC()
+        var q = PlaybackQueue()
+        q.setQueue([a, b, c], startAt: a)
+        _ = q.next()
+
+        q.clearUpcoming()
+
+        XCTAssertEqual(q.activeOrder, [a, b])
+        XCTAssertEqual(q.currentTrack, b)
+        XCTAssertTrue(q.upcomingTracks.isEmpty)
+    }
 }

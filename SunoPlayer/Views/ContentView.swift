@@ -5,6 +5,7 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject var library: MusicLibraryManager
     @EnvironmentObject var player: AudioPlayerManager
+    @EnvironmentObject var playlists: PlaylistManager
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var showNowPlaying = false
@@ -42,6 +43,18 @@ struct ContentView: View {
             NowPlayingView(isPresented: $showNowPlaying)
                 .environmentObject(library)
                 .environmentObject(player)
+                .environmentObject(playlists)
+        }
+        .alert(
+            "Playback Error",
+            isPresented: Binding(
+                get: { player.lastError != nil },
+                set: { if !$0 { player.clearError() } }
+            )
+        ) {
+            Button("OK") { player.clearError() }
+        } message: {
+            Text(player.lastError ?? "")
         }
         .background(Color.black.ignoresSafeArea())
     }

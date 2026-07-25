@@ -7,6 +7,7 @@ import Combine
 final class PlaylistManager: ObservableObject {
 
     @Published private(set) var playlists: [Playlist] = []
+    @Published private(set) var lastError: String?
 
     private let saveFileName = "playlists.json"
     private var saveURL: URL {
@@ -23,6 +24,18 @@ final class PlaylistManager: ObservableObject {
     func createPlaylist(name: String) -> Playlist {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let playlist = Playlist(name: trimmed.isEmpty ? "New Playlist" : trimmed)
+        playlists.append(playlist)
+        save()
+        return playlist
+    }
+
+    @discardableResult
+    func createSmartPlaylist(name: String, rule: SmartPlaylistRule) -> Playlist {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let playlist = Playlist(
+            name: trimmed.isEmpty ? rule.summary : trimmed,
+            smartRule: rule
+        )
         playlists.append(playlist)
         save()
         return playlist
@@ -64,6 +77,14 @@ final class PlaylistManager: ObservableObject {
         save()
     }
 
+    func removeTracks(_ trackIDs: Set<UUID>, from playlist: Playlist) {
+        guard let index = indexOf(playlist), !trackIDs.isEmpty else { return }
+        for trackID in trackIDs {
+            playlists[index].removeTrack(trackID)
+        }
+        save()
+    }
+
     /// Reorders using offsets from the *resolved* (library-filtered) track list. Offsets are
     /// translated to stored-id space by identity, so ids whose tracks are missing from the
     /// library ("ghosts") don't corrupt the move; ghosts are kept at the end.
@@ -94,6 +115,10 @@ final class PlaylistManager: ObservableObject {
         playlists.first { $0.id == playlist.id }
     }
 
+    func clearError() {
+        lastError = nil
+    }
+
     private func indexOf(_ playlist: Playlist) -> Int? {
         playlists.firstIndex { $0.id == playlist.id }
     }
@@ -104,7 +129,7 @@ final class PlaylistManager: ObservableObject {
         do {
             try JSONEncoder().encode(playlists).write(to: saveURL, options: .atomic)
         } catch {
-            print("Failed to save playlists: \(error)")
+            lastError = "Playlists could not be saved: \(error.localizedDescription)"
         }
     }
 
@@ -113,7 +138,7 @@ final class PlaylistManager: ObservableObject {
         do {
             playlists = try JSONDecoder().decode([Playlist].self, from: Data(contentsOf: saveURL))
         } catch {
-            print("Failed to load playlists: \(error)")
+            lastError = "Playlists could not be loaded: \(error.localizedDescription)"
         }
     }
 }

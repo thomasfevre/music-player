@@ -22,6 +22,10 @@ struct PlaybackQueue {
     var isEmpty: Bool { activeOrder.isEmpty }
 
     var currentTrack: Track? { track(at: currentIndex) }
+    var upcomingTracks: [Track] {
+        guard currentIndex + 1 < activeOrder.count else { return [] }
+        return Array(activeOrder[(currentIndex + 1)...])
+    }
 
     func track(at index: Int) -> Track? {
         activeOrder.indices.contains(index) ? activeOrder[index] : nil
@@ -104,6 +108,69 @@ struct PlaybackQueue {
             currentIndex = min(currentIndex, max(0, activeOrder.count - 1))
         }
         return removedCurrent
+    }
+
+    /// Inserts a track directly after the current track. A queued copy is moved instead of
+    /// duplicated, while the currently playing item is never removed.
+    mutating func enqueueNext(_ track: Track) {
+        guard let current = currentTrack else {
+            setQueue([track], startAt: track)
+            return
+        }
+        guard track != current else { return }
+        var order = activeOrder
+        order.removeAll { $0 == track }
+        guard let currentPosition = order.firstIndex(of: current) else { return }
+        order.insert(track, at: currentPosition + 1)
+        replaceActiveOrder(order, keeping: current)
+    }
+
+    /// Appends a track to the end of the queue, moving any queued copy to the end.
+    mutating func enqueueLater(_ track: Track) {
+        guard let current = currentTrack else {
+            setQueue([track], startAt: track)
+            return
+        }
+        var order = activeOrder
+        if track != current {
+            order.removeAll { $0 == track }
+            order.append(track)
+        }
+        replaceActiveOrder(order, keeping: current)
+    }
+
+    /// Reorders only the tracks after the current item. Offsets use SwiftUI `onMove` semantics.
+    mutating func moveUpcoming(fromOffsets source: IndexSet, toOffset destination: Int) {
+        guard let current = currentTrack else { return }
+        let prefix = Array(activeOrder.prefix(currentIndex + 1))
+        let reordered = Playlist.moved(
+            upcomingTracks,
+            fromOffsets: source,
+            toOffset: destination
+        )
+        replaceActiveOrder(prefix + reordered, keeping: current)
+    }
+
+    /// Removes tracks by their index in `upcomingTracks`.
+    mutating func removeUpcoming(at offsets: IndexSet) {
+        guard let current = currentTrack else { return }
+        let prefix = Array(activeOrder.prefix(currentIndex + 1))
+        var remaining = upcomingTracks
+        for index in offsets.sorted(by: >) where remaining.indices.contains(index) {
+            remaining.remove(at: index)
+        }
+        replaceActiveOrder(prefix + remaining, keeping: current)
+    }
+
+    mutating func clearUpcoming() {
+        guard let current = currentTrack else { return }
+        replaceActiveOrder(Array(activeOrder.prefix(currentIndex + 1)), keeping: current)
+    }
+
+    private mutating func replaceActiveOrder(_ order: [Track], keeping current: Track) {
+        baseOrder = order
+        if shuffleEnabled { shuffledOrder = order }
+        currentIndex = order.firstIndex(of: current) ?? 0
     }
 
     private static func bringToFront(_ track: Track, in array: [Track]) -> [Track] {

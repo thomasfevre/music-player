@@ -30,6 +30,24 @@ final class TrackQueryTests: XCTestCase {
         XCTAssertEqual(r.map(\.title), ["alpha"])
     }
 
+    func testSearchByAlbumAndGenre() {
+        let ambient = Track(
+            title: "Rain",
+            artist: "Clouds",
+            album: "Night Sessions",
+            genre: "Ambient",
+            fileName: "rain.mp3"
+        )
+        XCTAssertEqual(
+            TrackQuery.apply(tracks: [ambient], searchText: "sessions", sortOrder: .title).map(\.title),
+            ["Rain"]
+        )
+        XCTAssertEqual(
+            TrackQuery.apply(tracks: [ambient], searchText: "ambient", sortOrder: .title).map(\.title),
+            ["Rain"]
+        )
+    }
+
     func testSearchMatchesUnknownArtistFallback() {
         let r = TrackQuery.apply(tracks: sample(), searchText: "unknown", sortOrder: .newest)
         XCTAssertEqual(r.map(\.title), ["Zebra"]) // artist nil → "Unknown Artist"

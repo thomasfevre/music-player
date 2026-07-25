@@ -16,7 +16,9 @@ enum TrackQuery {
             ? tracks
             : tracks.filter {
                 $0.title.localizedCaseInsensitiveContains(trimmed) ||
-                $0.displayArtist.localizedCaseInsensitiveContains(trimmed)
+                $0.displayArtist.localizedCaseInsensitiveContains(trimmed) ||
+                ($0.album?.localizedCaseInsensitiveContains(trimmed) ?? false) ||
+                ($0.genre?.localizedCaseInsensitiveContains(trimmed) ?? false)
             }
         let filtered = favoriteIDs.map { ids in bySearch.filter { ids.contains($0.id) } } ?? bySearch
 

@@ -57,6 +57,7 @@ final class AudioPlayerManagerTests: XCTestCase {
         XCTAssertNil(manager.currentTrack)
         XCTAssertFalse(manager.isPlaying)
         XCTAssertEqual(manager.currentTime, 0)
+        XCTAssertTrue(manager.activeQueue.isEmpty)
     }
 
     func testDeletingNonCurrentTrackKeepsPlayback() throws {
@@ -70,6 +71,17 @@ final class AudioPlayerManagerTests: XCTestCase {
         XCTAssertEqual(manager.currentTrack, a)
         XCTAssertTrue(manager.isPlaying)
         XCTAssertEqual(manager.activeQueue, [a])
+    }
+
+    func testPlayNextStartsPlaybackWhenQueueIsEmpty() throws {
+        let manager = AudioPlayerManager()
+        let track = try makePlayableTrack("play-next-empty", title: "Next")
+
+        manager.enqueueNext(track)
+
+        XCTAssertEqual(manager.currentTrack, track)
+        XCTAssertEqual(manager.activeQueue, [track])
+        XCTAssertTrue(manager.isPlaying)
     }
 
     func testMissingFileSetsErrorAndClearsState() {

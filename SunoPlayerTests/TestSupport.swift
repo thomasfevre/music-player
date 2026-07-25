@@ -6,6 +6,8 @@ enum TestSupport {
     static func track(
         title: String,
         artist: String? = nil,
+        album: String? = nil,
+        genre: String? = nil,
         fileName: String? = nil,
         duration: TimeInterval = 10,
         dateImported: Date = Date()
@@ -13,6 +15,8 @@ enum TestSupport {
         Track(
             title: title,
             artist: artist,
+            album: album,
+            genre: genre,
             fileName: fileName ?? "\(title).m4a",
             duration: duration,
             dateImported: dateImported

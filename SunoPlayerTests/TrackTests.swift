@@ -62,9 +62,18 @@ final class TrackTests: XCTestCase {
     }
 
     func testCodableRoundTripPreservesArtworkFileName() throws {
-        let original = Track(title: "Song", fileName: "x.m4a", artworkFileName: "x.img")
+        let original = Track(
+            title: "Song",
+            artist: "Artist",
+            album: "Album",
+            genre: "Synthwave",
+            fileName: "x.m4a",
+            artworkFileName: "x.img"
+        )
         let decoded = try JSONDecoder().decode(Track.self, from: JSONEncoder().encode(original))
         XCTAssertEqual(decoded.artworkFileName, "x.img")
+        XCTAssertEqual(decoded.album, "Album")
+        XCTAssertEqual(decoded.genre, "Synthwave")
     }
 
     func testDecodesLegacyJSONWithoutArtworkKey() throws {
@@ -75,6 +84,8 @@ final class TrackTests: XCTestCase {
         """.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(Track.self, from: legacy)
         XCTAssertNil(decoded.artworkFileName)
+        XCTAssertNil(decoded.album)
+        XCTAssertNil(decoded.genre)
         XCTAssertEqual(decoded.title, "Old")
     }
 }

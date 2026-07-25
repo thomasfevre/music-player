@@ -13,6 +13,8 @@ struct LibraryView: View {
     @State private var showFilePicker = false
     @State private var showSortMenu = false
     @State private var showPlaylists = false
+    @State private var showBrowser = false
+    @State private var pendingDeletion: Track?
 
     // Bottom padding when mini player is visible
     private var listBottomPadding: CGFloat {
@@ -57,6 +59,30 @@ struct LibraryView: View {
                     .environmentObject(library)
                     .environmentObject(player)
             }
+            .sheet(isPresented: $showBrowser) {
+                LibraryBrowserView()
+                    .environmentObject(library)
+                    .environmentObject(player)
+            }
+            .alert(item: $pendingDeletion) { track in
+                Alert(
+                    title: Text("Delete Downloaded File?"),
+                    message: Text("“\(track.title)” will be permanently removed from this iPhone and from every playlist."),
+                    primaryButton: .destructive(Text("Delete")) { delete(track) },
+                    secondaryButton: .cancel()
+                )
+            }
+            .alert(
+                "Music Library Error",
+                isPresented: Binding(
+                    get: { library.lastError != nil },
+                    set: { if !$0 { library.clearError() } }
+                )
+            ) {
+                Button("OK") { library.clearError() }
+            } message: {
+                Text(library.lastError ?? "")
+            }
         }
     }
 
@@ -78,6 +104,16 @@ struct LibraryView: View {
                     }
                     .contextMenu {
                         Button {
+                            player.enqueueNext(track)
+                        } label: {
+                            Label("Play Next", systemImage: "text.insert")
+                        }
+                        Button {
+                            player.enqueueLater(track)
+                        } label: {
+                            Label("Play Later", systemImage: "text.append")
+                        }
+                        Button {
                             library.toggleFavorite(track)
                         } label: {
                             let fav = library.isFavorite(track)
@@ -85,7 +121,7 @@ struct LibraryView: View {
                                   systemImage: fav ? "heart.slash" : "heart")
                         }
                         Menu {
-                            ForEach(playlists.playlists) { playlist in
+                            ForEach(playlists.playlists.filter { $0.smartRule == nil }) { playlist in
                                 Button {
                                     if playlist.contains(track.id) {
                                         playlists.removeTrack(track.id, from: playlist)
@@ -108,15 +144,9 @@ struct LibraryView: View {
                             Label("Add to Playlist", systemImage: "text.badge.plus")
                         }
                         Button(role: .destructive) {
-                            // Update the player only after the filesystem delete succeeds,
-                            // so the queue can never reference a still-present file (and
-                            // vice-versa). Atomic — no rollback needed.
-                            if library.deleteTrack(track) {
-                                player.handleTrackDeleted(track)
-                                playlists.removeTrackFromAll(track.id)
-                            }
+                            pendingDeletion = track
                         } label: {
-                            Label("Delete", systemImage: "trash")
+                            Label("Delete Downloaded File", systemImage: "trash")
                         }
                     }
                 }
@@ -201,6 +231,14 @@ struct LibraryView: View {
     private var toolbarItems: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
             HStack(spacing: 16) {
+                Button {
+                    showBrowser = true
+                } label: {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.white.opacity(0.8))
+                }
+
                 // Playlists
                 Button {
                     showPlaylists = true
@@ -251,6 +289,14 @@ struct LibraryView: View {
                         .background(.ultraThinMaterial, in: Circle())
                 }
             }
+        }
+    }
+
+    private func delete(_ track: Track) {
+        // The queue and playlists update only after the file operation succeeds.
+        if library.deleteTrack(track) {
+            player.handleTrackDeleted(track)
+            playlists.removeTrackFromAll(track.id)
         }
     }
 }

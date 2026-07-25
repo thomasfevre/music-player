@@ -37,6 +37,8 @@ struct Track: Identifiable, Codable, Equatable {
     let id: UUID
     var title: String
     var artist: String?
+    var album: String?
+    var genre: String?
     let fileName: String
     var duration: TimeInterval
     let dateImported: Date
@@ -78,6 +80,14 @@ struct Track: Identifiable, Codable, Equatable {
         artist ?? "Unknown Artist"
     }
 
+    var displayAlbum: String {
+        album ?? "Unknown Album"
+    }
+
+    var displayGenre: String {
+        genre ?? "Unknown Genre"
+    }
+
     var gradientColors: [Color] {
         [
             Color(hue: gradientHue1, saturation: 0.7, brightness: 0.75),
@@ -90,6 +100,8 @@ struct Track: Identifiable, Codable, Equatable {
         id: UUID = UUID(),
         title: String,
         artist: String? = nil,
+        album: String? = nil,
+        genre: String? = nil,
         fileName: String,
         duration: TimeInterval = 0,
         dateImported: Date = Date(),
@@ -100,6 +112,8 @@ struct Track: Identifiable, Codable, Equatable {
         self.id = id
         self.title = title
         self.artist = artist
+        self.album = album
+        self.genre = genre
         self.fileName = fileName
         self.duration = duration
         self.dateImported = dateImported

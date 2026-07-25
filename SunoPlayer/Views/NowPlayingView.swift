@@ -5,6 +5,7 @@ import SwiftUI
 struct NowPlayingView: View {
     @EnvironmentObject var library: MusicLibraryManager
     @EnvironmentObject var player: AudioPlayerManager
+    @EnvironmentObject var playlists: PlaylistManager
     @Binding var isPresented: Bool
 
     // Animated gradient hue shift
@@ -14,6 +15,7 @@ struct NowPlayingView: View {
     @State private var scrubProgress: CGFloat?
 
     @StateObject private var artwork = ArtworkLoader()
+    @State private var showQueue = false
 
     private var track: Track? { player.currentTrack }
 
@@ -84,6 +86,11 @@ struct NowPlayingView: View {
             artwork.load(for: track)
         }
         .onChange(of: track?.id) { artwork.load(for: track) }
+        .sheet(isPresented: $showQueue) {
+            QueueView()
+                .environmentObject(player)
+                .environmentObject(playlists)
+        }
     }
 
     // MARK: - Background
@@ -429,10 +436,19 @@ struct NowPlayingView: View {
             Spacer()
 
             // Track count indicator
-            if let track, let idx = player.activeQueue.firstIndex(of: track) {
-                Text("\(idx + 1) / \(player.activeQueue.count)")
-                    .font(.caption)
-                    .foregroundColor(.white.opacity(0.35))
+            Button {
+                showQueue = true
+            } label: {
+                VStack(spacing: 3) {
+                    Image(systemName: "list.bullet")
+                        .font(.system(size: 19, weight: .medium))
+                    if let track, let idx = player.activeQueue.firstIndex(of: track) {
+                        Text("\(idx + 1)/\(player.activeQueue.count)")
+                            .font(.caption2.monospacedDigit())
+                    }
+                }
+                .foregroundColor(.white.opacity(0.45))
+                .frame(width: 52, height: 44)
             }
 
             Spacer()

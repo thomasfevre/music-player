@@ -16,6 +16,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     @Published private(set) var currentTime: TimeInterval = 0
     @Published private(set) var duration: TimeInterval = 0
     @Published private(set) var lastError: String?
+    @Published private(set) var activeQueue: [Track] = []
     @Published var shuffleEnabled: Bool = false
     @Published var repeatMode: RepeatMode = .off
 
@@ -45,9 +46,6 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     /// Remote-command targets, retained so they can be removed in `deinit`.
     private var remoteTargets: [(MPRemoteCommand, Any)] = []
 
-    // MARK: Computed
-    var activeQueue: [Track] { queue.activeOrder }
-
     // MARK: Init
     override init() {
         super.init()
@@ -73,6 +71,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
             queue.setShuffle(shuffleEnabled)
         }
         queue.setQueue(newQueue, startAt: track)
+        syncQueue()
         guard let current = queue.currentTrack else { return }
         loadAndPlay(track: current)
     }
@@ -107,6 +106,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
             return
         }
         if let index = queue.next(), let track = queue.track(at: index) {
+            syncQueue()
             loadAndPlay(track: track)
         } else {
             // End of queue with repeat off.
@@ -121,6 +121,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         case .restart:
             seek(to: 0)
         case .play(let index):
+            syncQueue()
             if let track = queue.track(at: index) { loadAndPlay(track: track) }
         case .none:
             break
@@ -137,6 +138,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     func toggleShuffle() {
         shuffleEnabled.toggle()
         queue.setShuffle(shuffleEnabled)
+        syncQueue()
     }
 
     func cycleRepeatMode() {
@@ -148,9 +150,51 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     /// playback stops and the selection clears; otherwise the queue is just trimmed.
     func handleTrackDeleted(_ track: Track) {
         let wasCurrent = queue.remove(track)
+        syncQueue()
         if wasCurrent {
+            queue = PlaybackQueue()
+            queue.repeatMode = repeatMode
+            if shuffleEnabled { queue.setShuffle(true) }
+            syncQueue()
             clearPlayback()
         }
+    }
+
+    func enqueueNext(_ track: Track) {
+        guard currentTrack != nil else {
+            play(track, in: [track])
+            return
+        }
+        queue.enqueueNext(track)
+        syncQueue()
+    }
+
+    func enqueueLater(_ track: Track) {
+        guard currentTrack != nil else {
+            play(track, in: [track])
+            return
+        }
+        queue.enqueueLater(track)
+        syncQueue()
+    }
+
+    func moveUpcoming(fromOffsets source: IndexSet, toOffset destination: Int) {
+        queue.moveUpcoming(fromOffsets: source, toOffset: destination)
+        syncQueue()
+    }
+
+    func removeUpcoming(at offsets: IndexSet) {
+        queue.removeUpcoming(at: offsets)
+        syncQueue()
+    }
+
+    func clearUpcoming() {
+        queue.clearUpcoming()
+        syncQueue()
+    }
+
+    func clearError() {
+        lastError = nil
     }
 
     // MARK: - Resume Last Session
@@ -163,6 +207,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
               let restore = PlaybackRestore.resolve(loadPersistedPlayback(), in: tracks) else { return }
         queue.repeatMode = repeatMode
         queue.setQueue(tracks, startAt: restore.track)
+        syncQueue()
         loadAndPlay(track: restore.track, autoPlay: false, startAt: restore.position)
     }
 
@@ -375,6 +420,10 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         currentTrack = nil
         clearPersistedPlayback()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
+
+    private func syncQueue() {
+        activeQueue = queue.activeOrder
     }
 
     /// Activates the shared audio session. Always calls `setActive(true)` (no cached flag), so

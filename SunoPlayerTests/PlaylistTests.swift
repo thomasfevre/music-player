@@ -117,4 +117,44 @@ final class PlaylistTests: XCTestCase {
         p.addTrack(UUID())
         XCTAssertTrue(PlaylistResolver.tracks(for: p, in: [TestSupport.track(title: "X")]).isEmpty)
     }
+
+    func testSmartRulesMatchMetadataFavoritesAndRecentImports() {
+        let now = Date(timeIntervalSince1970: 10_000)
+        let track = TestSupport.track(
+            title: "Night Drive",
+            artist: "Nova",
+            album: "City Lights",
+            genre: "Synthwave",
+            dateImported: now.addingTimeInterval(-3_600)
+        )
+
+        XCTAssertTrue(SmartPlaylistRule.artist("nova").matches(track, favoriteIDs: [], now: now))
+        XCTAssertTrue(SmartPlaylistRule.album("lights").matches(track, favoriteIDs: [], now: now))
+        XCTAssertTrue(SmartPlaylistRule.genre("synth").matches(track, favoriteIDs: [], now: now))
+        XCTAssertTrue(SmartPlaylistRule.favorites.matches(track, favoriteIDs: [track.id], now: now))
+        XCTAssertTrue(SmartPlaylistRule.recentlyAdded(days: 1).matches(track, favoriteIDs: [], now: now))
+        XCTAssertFalse(SmartPlaylistRule.recentlyAdded(days: 0).matches(track, favoriteIDs: [], now: now))
+    }
+
+    func testSmartPlaylistResolverUpdatesFromLibrary() {
+        let synth = TestSupport.track(title: "One", genre: "Synthwave")
+        let jazz = TestSupport.track(title: "Two", genre: "Jazz")
+        let playlist = Playlist(name: "Synth", smartRule: .genre("Synthwave"))
+
+        XCTAssertEqual(
+            PlaylistResolver.tracks(for: playlist, in: [jazz, synth]).map(\.id),
+            [synth.id]
+        )
+    }
+
+    func testLegacyPlaylistDecodesWithoutSmartRule() throws {
+        let id = UUID()
+        let json = """
+        {"id":"\(id.uuidString)","name":"Legacy","trackIDs":[],"dateCreated":0}
+        """
+
+        let decoded = try JSONDecoder().decode(Playlist.self, from: Data(json.utf8))
+
+        XCTAssertNil(decoded.smartRule)
+    }
 }
