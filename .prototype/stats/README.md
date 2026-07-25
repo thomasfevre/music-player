@@ -6,6 +6,16 @@ Three throwaway variants, all using clearly marked sample data:
 - `B`: collection statistics inside Browse, using data the app already has
 - `C`: a dedicated listening dashboard, requiring a new local listening-history model
 
+Option C is explored separately in three more focused directions:
+
+```sh
+open .prototype/stats/option-c.html
+```
+
+- `C1`: listening journal
+- `C2`: transparent taste model
+- `C3`: live Auto-DJ session
+
 Preview images are available under `previews/`.
 
 Open the prototype:

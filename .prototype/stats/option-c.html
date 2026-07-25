@@ -1,0 +1,643 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SunoPlayer Option C Exploration</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif;
+      background: #101012;
+      color: #f6f5f8;
+      --accent: #9b64ff;
+      --surface: #111114;
+      --surface-2: #1b1a1f;
+      --muted: #9a96a1;
+      --faint: #696570;
+      --line: rgba(255, 255, 255, 0.1);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 12px 18px 106px;
+      background: #101012;
+    }
+
+    button { font: inherit; }
+    .prototype-note {
+      position: fixed;
+      top: 18px;
+      left: 18px;
+      max-width: 250px;
+      color: #a7a3ad;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .phone {
+      width: min(393px, calc(100vw - 24px));
+      height: min(852px, calc(100vh - 82px));
+      min-height: 690px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 48px;
+      background: #000;
+      box-shadow: 0 28px 60px rgba(0, 0, 0, 0.46);
+    }
+
+    .status {
+      height: 54px;
+      padding: 17px 27px 0;
+      display: flex;
+      justify-content: space-between;
+      font-size: 15px;
+      font-weight: 750;
+    }
+
+    .status-right { display: flex; gap: 7px; font-size: 11px; }
+    .battery {
+      width: 25px;
+      height: 12px;
+      border: 1.5px solid #ddd;
+      border-radius: 4px;
+      padding: 2px;
+    }
+    .battery::after {
+      content: "";
+      display: block;
+      width: 72%;
+      height: 100%;
+      background: #ddd;
+    }
+
+    .variant {
+      display: none;
+      height: calc(100% - 54px);
+      overflow: hidden;
+      padding: 5px 16px 24px;
+    }
+    .variant.active { display: block; }
+
+    .title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 16px;
+    }
+    h1 {
+      margin: 0;
+      font-size: 29px;
+      line-height: 1.05;
+      letter-spacing: -0.03em;
+    }
+    .title-copy {
+      margin: 5px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .close {
+      width: 44px;
+      height: 44px;
+      margin-top: -6px;
+      border: 0;
+      border-radius: 50%;
+      color: #c9c6ce;
+      background: #1e1d22;
+      font-size: 19px;
+    }
+    .tag {
+      display: inline-flex;
+      min-height: 25px;
+      align-items: center;
+      padding: 4px 9px;
+      border-radius: 999px;
+      color: #d6c8ff;
+      background: rgba(151, 93, 255, 0.16);
+      font-size: 10px;
+      font-weight: 720;
+    }
+
+    /* C1: a chronological listening journal */
+    .journal {
+      background: #000;
+    }
+    .period {
+      height: 36px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      margin-bottom: 18px;
+      padding: 3px;
+      border-radius: 10px;
+      background: #1b1a1f;
+      color: #8f8a96;
+      font-size: 11px;
+      font-weight: 650;
+    }
+    .period span {
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+    }
+    .period .selected {
+      color: #fff;
+      background: #3a3740;
+    }
+    .week-strip {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 7px;
+      align-items: end;
+      height: 108px;
+      padding: 4px 3px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .day {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      gap: 7px;
+      text-align: center;
+      color: var(--faint);
+      font-size: 9px;
+    }
+    .day i {
+      width: 100%;
+      height: var(--h);
+      min-height: 6px;
+      border-radius: 5px 5px 2px 2px;
+      background: #5b3ba5;
+    }
+    .day.current i { background: var(--accent); }
+    .day.current { color: #d4c6f8; }
+    .summary-line {
+      display: flex;
+      gap: 22px;
+      padding: 14px 2px 15px;
+    }
+    .summary-line strong { display: block; font-size: 19px; }
+    .summary-line span { color: var(--muted); font-size: 10px; }
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin: 4px 1px 9px;
+      font-size: 14px;
+      font-weight: 720;
+    }
+    .section-title span { color: #8b5ef2; font-size: 10px; font-weight: 600; }
+    .session-row {
+      display: grid;
+      grid-template-columns: 42px 1fr auto;
+      align-items: center;
+      gap: 11px;
+      min-height: 67px;
+      margin-bottom: 7px;
+      padding: 10px 11px;
+      border-radius: 15px;
+      background: var(--surface);
+    }
+    .session-icon {
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      color: #e2d8ff;
+      background: #39245f;
+      font-size: 18px;
+    }
+    .session-name { font-size: 13px; font-weight: 680; }
+    .session-meta { margin-top: 4px; color: var(--muted); font-size: 10px; }
+    .session-time { color: #b8b4be; font-size: 11px; }
+    .signal-line {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 12px;
+      padding: 12px 4px 0;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .signal-line b { color: #fff; font-size: 12px; }
+
+    /* C2: a transparent taste model */
+    .taste {
+      background:
+        radial-gradient(circle at 50% 34%, rgba(130, 74, 232, 0.18), transparent 35%),
+        #000;
+    }
+    .model-status {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 2px 0 12px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .model-status strong { color: #cfcbd5; }
+    .taste-map {
+      height: 260px;
+      position: relative;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+    .edge {
+      position: absolute;
+      height: 1px;
+      transform-origin: left;
+      background: rgba(154, 95, 255, 0.42);
+    }
+    .e1 { width: 102px; left: 99px; top: 113px; transform: rotate(-34deg); }
+    .e2 { width: 107px; left: 99px; top: 113px; transform: rotate(34deg); }
+    .e3 { width: 80px; left: 190px; top: 58px; transform: rotate(74deg); }
+    .e4 { width: 86px; left: 189px; top: 177px; transform: rotate(-64deg); }
+    .node {
+      position: absolute;
+      display: grid;
+      place-items: center;
+      text-align: center;
+      border-radius: 50%;
+      color: #ece8f2;
+      background: #17151b;
+      font-size: 10px;
+      line-height: 1.15;
+    }
+    .node.main {
+      width: 94px;
+      height: 94px;
+      left: 94px;
+      top: 67px;
+      background: #5c2ea4;
+      font-size: 13px;
+      font-weight: 720;
+    }
+    .node.n1 { width: 66px; height: 66px; left: 215px; top: 20px; }
+    .node.n2 { width: 74px; height: 74px; left: 242px; top: 110px; }
+    .node.n3 { width: 66px; height: 66px; left: 195px; top: 177px; }
+    .node.n4 { width: 58px; height: 58px; left: 21px; top: 172px; color: var(--muted); }
+    .why {
+      margin: 14px 0 13px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+    .why strong { font-size: 13px; }
+    .why p { margin: 6px 0 0; color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .transition {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      min-height: 53px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .transition-name { font-size: 12px; }
+    .transition-meta { margin-top: 3px; color: var(--muted); font-size: 10px; }
+    .transition-score { color: #bea3ff; font-size: 11px; font-weight: 700; }
+    .analysis-progress {
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 10px;
+    }
+    .progress {
+      height: 6px;
+      margin: 7px 0 5px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: #242128;
+    }
+    .progress::after {
+      content: "";
+      display: block;
+      width: 88%;
+      height: 100%;
+      background: var(--accent);
+    }
+
+    /* C3: live, actionable Auto-DJ session */
+    .live {
+      padding-right: 12px;
+      padding-left: 12px;
+      background: #000;
+    }
+    .live .title-row { padding: 0 4px; margin-bottom: 12px; }
+    .session-bar {
+      height: 38px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      padding: 3px;
+      border-radius: 11px;
+      background: #19181d;
+      color: #8d8994;
+      font-size: 10px;
+      font-weight: 650;
+    }
+    .session-bar span { display: grid; place-items: center; border-radius: 8px; }
+    .session-bar .selected { color: #fff; background: #4a2d7b; }
+    .now {
+      display: grid;
+      grid-template-columns: 88px 1fr;
+      gap: 14px;
+      align-items: center;
+      margin: 15px 0 12px;
+      padding: 5px 4px;
+    }
+    .cover {
+      width: 88px;
+      height: 88px;
+      display: grid;
+      place-items: center;
+      border-radius: 15px;
+      background: linear-gradient(145deg, #b441d3, #2435a4);
+      font-size: 27px;
+    }
+    .playing-label { color: #9b70ee; font-size: 10px; font-weight: 720; }
+    .track-title { margin-top: 5px; font-size: 19px; font-weight: 720; }
+    .track-artist { margin-top: 4px; color: var(--muted); font-size: 11px; }
+    .reason { margin-top: 8px; color: #c1bdc7; font-size: 10px; line-height: 1.35; }
+    .feedback {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .feedback button {
+      min-height: 50px;
+      border: 0;
+      border-radius: 14px;
+      color: #dedbe2;
+      background: #1d1c20;
+      font-size: 11px;
+      font-weight: 680;
+    }
+    .feedback .positive { color: #fff; background: #6e39bb; }
+    .feedback b { display: block; margin-bottom: 2px; font-size: 17px; }
+    .queue-title {
+      display: flex;
+      justify-content: space-between;
+      margin: 3px 4px 8px;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .queue-title span { color: var(--muted); font-size: 10px; font-weight: 500; }
+    .queue-item {
+      display: grid;
+      grid-template-columns: 36px 1fr auto;
+      gap: 10px;
+      align-items: center;
+      min-height: 54px;
+      padding: 7px 9px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    }
+    .queue-cover {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: 9px;
+      background: #2b2452;
+      color: #d8ccfa;
+    }
+    .queue-item:nth-child(3) .queue-cover { background: #49253e; }
+    .queue-item:nth-child(4) .queue-cover { background: #1f3b55; }
+    .queue-name { font-size: 11px; font-weight: 650; }
+    .queue-why { margin-top: 3px; color: var(--muted); font-size: 9px; }
+    .queue-time { color: var(--faint); font-size: 9px; }
+    .learning-note {
+      display: flex;
+      gap: 9px;
+      align-items: center;
+      margin: 13px 4px 0;
+      padding-top: 12px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 9px;
+      line-height: 1.35;
+    }
+    .learning-dot {
+      width: 8px;
+      height: 8px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: #8f5af4;
+      box-shadow: 0 0 0 5px rgba(143, 90, 244, 0.12);
+    }
+
+    .switcher {
+      position: fixed;
+      left: 50%;
+      bottom: 22px;
+      width: min(540px, calc(100vw - 28px));
+      min-height: 64px;
+      display: grid;
+      grid-template-columns: 48px 1fr 48px;
+      align-items: center;
+      transform: translateX(-50%);
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 22px;
+      background: #211f25;
+      box-shadow: 0 12px 30px rgba(0, 0, 0, 0.42);
+    }
+    .switcher button {
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 13px;
+      color: #fff;
+      background: #3a3741;
+      font-size: 20px;
+    }
+    .switcher-copy { padding: 0 10px; text-align: center; }
+    .switcher-name { font-size: 13px; font-weight: 720; }
+    .switcher-desc { margin-top: 3px; color: #9c98a2; font-size: 10px; }
+
+    @media (max-width: 760px) {
+      .prototype-note { display: none; }
+      .phone { height: calc(100vh - 88px); }
+    }
+  </style>
+</head>
+<body>
+  <!-- Three directions for Option C, switchable via ?variant=C1|C2|C3. -->
+  <aside class="prototype-note">
+    Option C exploration. Sample data only. No listening history or Auto-DJ is implemented in the production app.
+  </aside>
+
+  <main class="phone">
+    <header class="status" aria-hidden="true">
+      <span>19:00</span>
+      <span class="status-right"><span>●●●●</span><span>⌁</span><span class="battery"></span></span>
+    </header>
+
+    <section class="variant journal" data-variant="C1">
+      <div class="title-row">
+        <div><h1>Listening</h1><p class="title-copy">A journal of your real sessions</p></div>
+        <button class="close" aria-label="Close">×</button>
+      </div>
+      <div class="period"><span>Week</span><span class="selected">Month</span><span>All time</span></div>
+      <div class="week-strip">
+        <div class="day"><i style="--h:31%"></i><span>M</span></div>
+        <div class="day"><i style="--h:56%"></i><span>T</span></div>
+        <div class="day"><i style="--h:43%"></i><span>W</span></div>
+        <div class="day"><i style="--h:72%"></i><span>T</span></div>
+        <div class="day"><i style="--h:48%"></i><span>F</span></div>
+        <div class="day current"><i style="--h:88%"></i><span>S</span></div>
+        <div class="day"><i style="--h:63%"></i><span>S</span></div>
+      </div>
+      <div class="summary-line">
+        <div><strong>12h 34m</strong><span>listened</span></div>
+        <div><strong>186</strong><span>tracks played</span></div>
+        <div><strong>22</strong><span>sessions</span></div>
+      </div>
+      <div class="section-title">Recent sessions <span>See all</span></div>
+      <div class="session-row">
+        <div class="session-icon">⌁</div>
+        <div><div class="session-name">Gym</div><div class="session-meta">14 tracks · 2 skips · 1 replay</div></div>
+        <div class="session-time">52m</div>
+      </div>
+      <div class="session-row">
+        <div class="session-icon">♫</div>
+        <div><div class="session-name">Film scores</div><div class="session-meta">9 tracks · completed</div></div>
+        <div class="session-time">41m</div>
+      </div>
+      <div class="session-row">
+        <div class="session-icon">◌</div>
+        <div><div class="session-name">Focus</div><div class="session-meta">11 tracks · no vocals</div></div>
+        <div class="session-time">1h 08</div>
+      </div>
+      <div class="signal-line">
+        <span><b>82%</b><br>completed</span>
+        <span><b>6</b><br>replays</span>
+        <span><b>4</b><br>early skips</span>
+        <span><b>3</b><br>thumbs down</span>
+      </div>
+    </section>
+
+    <section class="variant taste" data-variant="C2">
+      <div class="title-row">
+        <div><h1>What your DJ learned</h1><p class="title-copy">Transparent, editable, local</p></div>
+        <span class="tag">Sample</span>
+      </div>
+      <div class="model-status"><span><strong>Gym profile</strong> · 18 sessions</span><span>High confidence</span></div>
+      <div class="taste-map">
+        <i class="edge e1"></i><i class="edge e2"></i><i class="edge e3"></i><i class="edge e4"></i>
+        <div class="node main">Your gym<br>sound</div>
+        <div class="node n1">Melodic<br>electronic</div>
+        <div class="node n2">High<br>energy</div>
+        <div class="node n3">Clear<br>melody</div>
+        <div class="node n4">Fewer<br>vocals</div>
+      </div>
+      <div class="why">
+        <strong>Why these traits?</strong>
+        <p>You usually finish melodic electronic tracks, replay strong hooks, and skip noisier tracks early.</p>
+      </div>
+      <div class="section-title">Strong transitions <span>Edit</span></div>
+      <div class="transition">
+        <div><div class="transition-name">Martin Garrix → Marshmello</div><div class="transition-meta">Worked in 7 sessions</div></div>
+        <div class="transition-score">92%</div>
+      </div>
+      <div class="transition">
+        <div><div class="transition-name">Film score → Epic instrumental</div><div class="transition-meta">Worked in 5 sessions</div></div>
+        <div class="transition-score">86%</div>
+      </div>
+      <div class="analysis-progress">
+        <div>42 of 48 tracks understood from audio</div>
+        <div class="progress"></div>
+        <div>Analysis happens once at import. Metadata is optional.</div>
+      </div>
+    </section>
+
+    <section class="variant live" data-variant="C3">
+      <div class="title-row">
+        <div><h1>Gym session</h1><p class="title-copy">Auto-DJ is shaping the next tracks</p></div>
+        <button class="close" aria-label="Close">×</button>
+      </div>
+      <div class="session-bar"><span>Comfort</span><span class="selected">Balanced</span><span>Discovery</span></div>
+      <div class="now">
+        <div class="cover">♪</div>
+        <div>
+          <div class="playing-label">PLAYING NOW</div>
+          <div class="track-title">Midnight Drive</div>
+          <div class="track-artist">NEON</div>
+          <div class="reason">Picked for high energy, clear melody, and a transition you liked before.</div>
+        </div>
+      </div>
+      <div class="feedback">
+        <button><b>−</b>Not for this session</button>
+        <button class="positive"><b>＋</b>More like this</button>
+      </div>
+      <div class="queue-title">Coming next <span>Updated from your feedback</span></div>
+      <div class="queue-item">
+        <div class="queue-cover">♪</div>
+        <div><div class="queue-name">Limitless</div><div class="queue-why">Energy match · familiar artist</div></div>
+        <div class="queue-time">3:18</div>
+      </div>
+      <div class="queue-item">
+        <div class="queue-cover">♪</div>
+        <div><div class="queue-name">Pulse Runner</div><div class="queue-why">Similar hook · new track</div></div>
+        <div class="queue-time">2:54</div>
+      </div>
+      <div class="queue-item">
+        <div class="queue-cover">♪</div>
+        <div><div class="queue-name">Ignition</div><div class="queue-why">Keeps the tempo rising</div></div>
+        <div class="queue-time">3:41</div>
+      </div>
+      <div class="learning-note">
+        <span class="learning-dot"></span>
+        <span>Finishes, early skips, replays, and these two buttons refine this session. Your listening model stays on this iPhone.</span>
+      </div>
+    </section>
+  </main>
+
+  <nav class="switcher" aria-label="Option C variants">
+    <button id="previous" aria-label="Previous variant">←</button>
+    <div class="switcher-copy">
+      <div class="switcher-name" id="variant-name"></div>
+      <div class="switcher-desc" id="variant-desc"></div>
+    </div>
+    <button id="next" aria-label="Next variant">→</button>
+  </nav>
+
+  <script>
+    const variants = [
+      { key: "C1", name: "C1 · Listening journal", desc: "Retrospective sessions and behavior signals" },
+      { key: "C2", name: "C2 · Taste model", desc: "See and correct what the Auto-DJ learned" },
+      { key: "C3", name: "C3 · Live session", desc: "Guide the next tracks without rating everything" }
+    ];
+    function currentIndex() {
+      const key = new URLSearchParams(location.search).get("variant") || "C1";
+      const index = variants.findIndex((item) => item.key === key.toUpperCase());
+      return index < 0 ? 0 : index;
+    }
+    function render(index, updateURL = false) {
+      const item = variants[(index + variants.length) % variants.length];
+      document.querySelectorAll(".variant").forEach((view) => {
+        view.classList.toggle("active", view.dataset.variant === item.key);
+      });
+      document.getElementById("variant-name").textContent = item.name;
+      document.getElementById("variant-desc").textContent = item.desc;
+      document.title = `SunoPlayer · ${item.key}`;
+      if (updateURL) {
+        const url = new URL(location.href);
+        url.searchParams.set("variant", item.key);
+        history.replaceState({}, "", url);
+      }
+    }
+    document.getElementById("previous").addEventListener("click", () => render(currentIndex() - 1, true));
+    document.getElementById("next").addEventListener("click", () => render(currentIndex() + 1, true));
+    document.addEventListener("keydown", (event) => {
+      if (event.target.matches("input, textarea, [contenteditable]")) return;
+      if (event.key === "ArrowLeft") render(currentIndex() - 1, true);
+      if (event.key === "ArrowRight") render(currentIndex() + 1, true);
+    });
+    window.addEventListener("popstate", () => render(currentIndex()));
+    render(currentIndex());
+  </script>
+</body>
+</html>
