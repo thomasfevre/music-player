@@ -16,6 +16,12 @@ open .prototype/stats/option-c.html
 - `C2`: transparent taste model
 - `C3`: live Auto-DJ session
 
+The product direction and technical constraints are documented in:
+
+- `OPTION-C.md`: feasibility-adjusted product direction and decision gates
+- `TECHNICAL-FEASIBILITY.md`: iOS architecture, audio-analysis options, privacy,
+  licensing, performance, and phased validation
+
 Preview images are available under `previews/`.
 
 Open the prototype:
