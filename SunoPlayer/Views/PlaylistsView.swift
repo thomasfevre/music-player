@@ -502,7 +502,9 @@ struct PlaylistDetailView: View {
     }
 
     private var canReorder: Bool {
-        canManuallyEdit && sortOrder == .manual && searchText.isEmpty
+        canManuallyEdit &&
+            sortOrder == .manual &&
+            searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     private func orderIndex(_ track: Track) -> Int {

@@ -38,4 +38,16 @@ final class M3UPlaylistCodecTests: XCTestCase {
             ["Song One.mp3", "My Song.mp3"]
         )
     }
+
+    func testRoundTripPreservesLiteralPercentEscapesAndLeadingHash() {
+        let tracks = [
+            TestSupport.track(title: "Percent", fileName: "100%20Hits.mp3"),
+            TestSupport.track(title: "Hash", fileName: "#song.mp3")
+        ]
+
+        XCTAssertEqual(
+            M3UPlaylistCodec.fileNames(in: M3UPlaylistCodec.encode(tracks)),
+            ["100%20Hits.mp3", "#song.mp3"]
+        )
+    }
 }

@@ -7,7 +7,9 @@ enum M3UPlaylistCodec {
     }
 
     static func encode(_ tracks: [Track]) -> String {
-        let paths = tracks.map(\.fileName)
+        // Prefix relative paths so a legitimate file name beginning with "#" is not
+        // interpreted as an M3U directive when the exported file is read again.
+        let paths = tracks.map { "./\($0.fileName)" }
         return (["#EXTM3U"] + paths).joined(separator: "\n") + "\n"
     }
 
@@ -35,7 +37,9 @@ enum M3UPlaylistCodec {
         let normalized = line.replacingOccurrences(of: "\\", with: "/")
         let component = normalized.split(separator: "/", omittingEmptySubsequences: true).last
             .map(String.init) ?? normalized
-        return component.removingPercentEncoding ?? component
+        // Percent-decode only true file URIs above. In an ordinary path, "%20" may be
+        // part of the real file name.
+        return component
     }
 
     static func resolve(_ text: String, in library: [Track]) -> Resolution {
