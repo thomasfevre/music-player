@@ -14,6 +14,17 @@ final class PlaylistTests: XCTestCase {
         XCTAssertEqual(p.trackIDs, [a, b])
     }
 
+    func testAddTracksAppendsInOrderAndDedupesBatch() {
+        var p = Playlist(name: "P")
+        let existing = UUID(), first = UUID(), second = UUID()
+        p.addTrack(existing)
+
+        let addedCount = p.addTracks([first, existing, second, first])
+
+        XCTAssertEqual(addedCount, 2)
+        XCTAssertEqual(p.trackIDs, [existing, first, second])
+    }
+
     func testContainsAndCount() {
         var p = Playlist(name: "P")
         let a = UUID()

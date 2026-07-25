@@ -1,5 +1,11 @@
 import UIKit
 
+/// UIKit does not declare `UIImage` Sendable, although this wrapper is only used to hand an
+/// immutable decoded image from a background task back to the main actor.
+private struct DecodedArtwork: @unchecked Sendable {
+    let image: UIImage
+}
+
 // MARK: - ArtworkLoader
 /// Loads extracted cover-art images off the main thread and publishes them back on it,
 /// so list rows never block the scroll on synchronous disk I/O. Decoded images are kept in a
@@ -28,14 +34,19 @@ final class ArtworkLoader: ObservableObject {
             return
         }
         image = nil
-        Task.detached(priority: .utility) {
-            guard let data = try? Data(contentsOf: url), let loaded = UIImage(data: data) else { return }
-            Self.cache.setObject(loaded, forKey: key)
-            await MainActor.run { [weak self] in
-                // Ignore if the track changed while we were decoding.
-                guard self?.loadedKey == fileName else { return }
-                self?.image = loaded
-            }
+        Task { @MainActor [weak self] in
+            let decoded = await Task.detached(priority: .utility) { () -> DecodedArtwork? in
+                guard let data = try? Data(contentsOf: url),
+                      let image = UIImage(data: data) else { return nil }
+                return DecodedArtwork(image: image)
+            }.value
+            guard let decoded else { return }
+
+            // Keep every cache access on the main actor. Besides making NSCache use consistent,
+            // this avoids a Swift 6 isolation error from the background decode task.
+            Self.cache.setObject(decoded.image, forKey: key)
+            guard self?.loadedKey == fileName else { return }
+            self?.image = decoded.image
         }
     }
 

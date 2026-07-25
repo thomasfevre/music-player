@@ -10,9 +10,10 @@ struct PlaylistsView: View {
 
     @State private var showCreateAlert = false
     @State private var newName = ""
+    @State private var path: [UUID] = []
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 Color.black.ignoresSafeArea()
                 if playlists.playlists.isEmpty {
@@ -22,6 +23,9 @@ struct PlaylistsView: View {
                 }
             }
             .navigationTitle("Playlists")
+            .navigationDestination(for: UUID.self) { playlistID in
+                PlaylistDetailView(playlistID: playlistID)
+            }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Done") { dismiss() }
@@ -38,7 +42,7 @@ struct PlaylistsView: View {
             .alert("New Playlist", isPresented: $showCreateAlert) {
                 TextField("Name", text: $newName)
                 Button("Cancel", role: .cancel) {}
-                Button("Create") { playlists.createPlaylist(name: newName) }
+                Button("Create", action: createAndOpenPlaylist)
             }
         }
         .preferredColorScheme(.dark)
@@ -47,9 +51,7 @@ struct PlaylistsView: View {
     private var list: some View {
         List {
             ForEach(playlists.playlists) { playlist in
-                NavigationLink {
-                    PlaylistDetailView(playlistID: playlist.id)
-                } label: {
+                NavigationLink(value: playlist.id) {
                     HStack(spacing: 14) {
                         Image(systemName: "music.note.list")
                             .font(.system(size: 20))
@@ -87,6 +89,11 @@ struct PlaylistsView: View {
         }
         .padding()
     }
+
+    private func createAndOpenPlaylist() {
+        let created = playlists.createPlaylist(name: newName)
+        path.append(created.id)
+    }
 }
 
 // MARK: - PlaylistDetailView
@@ -97,6 +104,10 @@ struct PlaylistDetailView: View {
     @EnvironmentObject var playlists: PlaylistManager
     @EnvironmentObject var library: MusicLibraryManager
     @EnvironmentObject var player: AudioPlayerManager
+
+    @State private var showAddTracks = false
+    @State private var showRenameAlert = false
+    @State private var renamedName = ""
 
     private var playlist: Playlist? {
         playlists.playlists.first { $0.id == playlistID }
@@ -150,6 +161,40 @@ struct PlaylistDetailView: View {
                 }
                 .disabled(tracks.isEmpty)
             }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showAddTracks = true
+                } label: {
+                    Image(systemName: "text.badge.plus")
+                }
+                .accessibilityLabel("Add Tracks")
+                .disabled(playlist == nil)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        renamedName = playlist?.name ?? ""
+                        showRenameAlert = true
+                    } label: {
+                        Label("Rename Playlist", systemImage: "pencil")
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                .disabled(playlist == nil)
+            }
+        }
+        .sheet(isPresented: $showAddTracks) {
+            AddTracksToPlaylistView(playlistID: playlistID)
+                .environmentObject(playlists)
+                .environmentObject(library)
+                .environmentObject(player)
+        }
+        .alert("Rename Playlist", isPresented: $showRenameAlert) {
+            TextField("Name", text: $renamedName)
+            Button("Cancel", role: .cancel) {}
+            Button("Rename", action: renamePlaylist)
+                .disabled(renamedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
     }
 
@@ -163,6 +208,11 @@ struct PlaylistDetailView: View {
         playlists.moveTracks(in: playlist, resolvedTracks: tracks, fromOffsets: source, toOffset: destination)
     }
 
+    private func renamePlaylist() {
+        guard let playlist else { return }
+        playlists.rename(playlist, to: renamedName)
+    }
+
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "music.note")
@@ -171,10 +221,19 @@ struct PlaylistDetailView: View {
             Text("No tracks yet")
                 .font(.headline)
                 .foregroundColor(.white)
-            Text("Add tracks from the library using the ⋯ menu.")
+            Text("Choose songs from your downloaded music.")
                 .font(.subheadline)
                 .foregroundColor(.white.opacity(0.5))
                 .multilineTextAlignment(.center)
+            Button {
+                showAddTracks = true
+            } label: {
+                Label("Add Tracks", systemImage: "text.badge.plus")
+                    .font(.headline)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.purple)
+            .padding(.top, 4)
         }
         .padding()
     }

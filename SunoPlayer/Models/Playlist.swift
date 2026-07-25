@@ -30,6 +30,19 @@ struct Playlist: Identifiable, Codable, Equatable {
         return true
     }
 
+    /// Appends several track ids in order, ignoring duplicates already in the playlist or input.
+    /// Returns the number of tracks that were added.
+    @discardableResult
+    mutating func addTracks(_ newTrackIDs: [UUID]) -> Int {
+        var existingIDs = Set(trackIDs)
+        var addedCount = 0
+        for trackID in newTrackIDs where existingIDs.insert(trackID).inserted {
+            trackIDs.append(trackID)
+            addedCount += 1
+        }
+        return addedCount
+    }
+
     mutating func removeTrack(_ trackID: UUID) {
         trackIDs.removeAll { $0 == trackID }
     }

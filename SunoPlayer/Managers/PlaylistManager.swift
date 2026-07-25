@@ -52,6 +52,12 @@ final class PlaylistManager: ObservableObject {
         if playlists[index].addTrack(trackID) { save() }
     }
 
+    /// Adds a batch in one mutation and performs at most one persistence write.
+    func addTracks(_ trackIDs: [UUID], to playlist: Playlist) {
+        guard let index = indexOf(playlist) else { return }
+        if playlists[index].addTracks(trackIDs) > 0 { save() }
+    }
+
     func removeTrack(_ trackID: UUID, from playlist: Playlist) {
         guard let index = indexOf(playlist) else { return }
         playlists[index].removeTrack(trackID)
