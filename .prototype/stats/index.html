@@ -1,0 +1,841 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SunoPlayer Stats Prototype</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", sans-serif;
+      background: #101012;
+      color: #f7f7f7;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      min-height: 100vh;
+      margin: 0;
+      display: grid;
+      place-items: center;
+      padding: 28px 20px 112px;
+      background:
+        radial-gradient(circle at 50% 12%, rgba(128, 69, 255, 0.18), transparent 34%),
+        #101012;
+    }
+
+    button { font: inherit; }
+
+    .prototype-note {
+      position: fixed;
+      top: 18px;
+      left: 20px;
+      z-index: 20;
+      max-width: 260px;
+      color: #aaa8b0;
+      font-size: 12px;
+      line-height: 1.4;
+    }
+
+    .phone {
+      width: min(393px, calc(100vw - 24px));
+      height: min(852px, calc(100vh - 90px));
+      min-height: 680px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 48px;
+      background: #000;
+      box-shadow: 0 34px 90px rgba(0, 0, 0, 0.48);
+    }
+
+    .screen {
+      height: 100%;
+      overflow: hidden;
+      background: #000;
+    }
+
+    .status {
+      height: 54px;
+      padding: 17px 27px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .status-right {
+      display: flex;
+      gap: 7px;
+      align-items: center;
+      color: #f3f3f3;
+      font-size: 12px;
+    }
+
+    .signal { letter-spacing: -1px; }
+    .battery {
+      width: 25px;
+      height: 12px;
+      border: 1.5px solid #ddd;
+      border-radius: 4px;
+      padding: 2px;
+    }
+    .battery::after {
+      content: "";
+      display: block;
+      height: 100%;
+      width: 72%;
+      border-radius: 1px;
+      background: #ddd;
+    }
+
+    .sample-pill,
+    .future-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      width: max-content;
+      min-height: 24px;
+      padding: 4px 9px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 999px;
+      color: #aaa7b0;
+      background: rgba(255, 255, 255, 0.06);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    .sample-pill::before {
+      content: "";
+      width: 5px;
+      height: 5px;
+      border-radius: 50%;
+      background: #8d54ff;
+    }
+
+    .future-pill {
+      color: #d6c9ff;
+      border-color: rgba(140, 83, 255, 0.3);
+      background: rgba(140, 83, 255, 0.12);
+    }
+
+    .variant { display: none; height: calc(100% - 54px); }
+    .variant.active { display: block; }
+
+    /* Variant A: compact stats directly on the library */
+    .a-shell {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .a-header {
+      padding: 4px 12px 8px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      background: #000;
+    }
+
+    .snapshot {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr auto;
+      align-items: center;
+      gap: 4px;
+      min-height: 52px;
+      padding: 0 6px;
+    }
+
+    .snapshot-value {
+      display: block;
+      font-size: 17px;
+      font-weight: 750;
+      letter-spacing: -0.3px;
+    }
+
+    .snapshot-label {
+      display: block;
+      margin-top: 1px;
+      color: #77747c;
+      font-size: 10px;
+    }
+
+    .action-row {
+      height: 62px;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      align-items: center;
+    }
+
+    .action {
+      display: grid;
+      justify-items: center;
+      gap: 4px;
+      color: #d9d8dc;
+      font-size: 10px;
+    }
+
+    .action-icon {
+      font-size: 19px;
+      line-height: 1;
+      color: #dddce1;
+    }
+
+    .search-row {
+      display: grid;
+      grid-template-columns: 1fr 62px;
+      gap: 8px;
+    }
+
+    .search,
+    .sort {
+      min-height: 46px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 15px;
+      background: #1d1d20;
+      color: #74727a;
+    }
+
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 14px;
+      font-size: 15px;
+    }
+
+    .search span:first-child { font-size: 22px; color: #bab9be; }
+
+    .sort {
+      display: grid;
+      place-items: center;
+      align-content: center;
+      gap: 1px;
+      color: #d2d0d6;
+      font-size: 10px;
+    }
+
+    .sort b { font-size: 17px; }
+
+    .track-list {
+      flex: 1;
+      padding: 10px 12px 110px;
+      overflow: hidden;
+    }
+
+    .track {
+      display: grid;
+      grid-template-columns: 58px 1fr auto;
+      align-items: center;
+      gap: 12px;
+      min-height: 78px;
+      margin-bottom: 6px;
+      padding: 9px 12px;
+      border-radius: 17px;
+      background: #0c0c0e;
+    }
+
+    .cover {
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      border-radius: 13px;
+      color: rgba(255, 255, 255, 0.85);
+      background: linear-gradient(145deg, #903de1, #2736a8);
+      box-shadow: 0 8px 24px rgba(109, 54, 209, 0.22);
+    }
+
+    .cover.sunset { background: linear-gradient(145deg, #eb7f4c, #9f287d); }
+    .cover.blue { background: linear-gradient(145deg, #277cd6, #212b83); }
+
+    .track-title { font-size: 16px; letter-spacing: -0.2px; }
+    .track-artist { margin-top: 4px; color: #77747c; font-size: 12px; }
+    .track-time { color: #66636b; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+    .mini-player {
+      position: absolute;
+      right: 12px;
+      bottom: 12px;
+      left: 12px;
+      height: 72px;
+      display: grid;
+      grid-template-columns: 46px 1fr auto;
+      align-items: center;
+      gap: 11px;
+      padding: 10px 14px 10px 10px;
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 23px;
+      background: rgba(38, 38, 42, 0.96);
+      box-shadow: 0 16px 35px rgba(0, 0, 0, 0.4);
+    }
+
+    .mini-cover {
+      width: 46px;
+      height: 46px;
+      border-radius: 10px;
+      background: linear-gradient(145deg, #277cd6, #212b83);
+    }
+
+    .mini-title { font-size: 13px; font-weight: 650; }
+    .mini-sub { margin-top: 3px; color: #9d9aa3; font-size: 11px; }
+    .play { font-size: 22px; }
+
+    /* Variant B: a collection dashboard inside Browse */
+    .b-shell {
+      height: 100%;
+      overflow: hidden;
+      padding: 4px 16px 24px;
+      background:
+        radial-gradient(circle at 90% 0, rgba(128, 70, 255, 0.18), transparent 30%),
+        #000;
+    }
+
+    .sheet-grabber {
+      width: 36px;
+      height: 4px;
+      margin: 0 auto 12px;
+      border-radius: 999px;
+      background: #4b494f;
+    }
+
+    .page-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .page-title {
+      margin: 0;
+      font-size: 29px;
+      letter-spacing: -0.9px;
+    }
+
+    .close {
+      width: 30px;
+      height: 30px;
+      border: 0;
+      border-radius: 50%;
+      color: #c7c5cb;
+      background: #222226;
+      font-size: 16px;
+    }
+
+    .segmented {
+      height: 38px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      margin: 16px 0 14px;
+      padding: 3px;
+      border-radius: 11px;
+      background: #1b1b1e;
+      color: #8f8c95;
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .segmented span {
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+    }
+
+    .segmented .selected {
+      color: #fff;
+      background: #343339;
+      box-shadow: 0 2px 7px rgba(0, 0, 0, 0.3);
+    }
+
+    .b-intro {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 10px;
+    }
+
+    .b-intro h2 {
+      margin: 0 0 3px;
+      font-size: 16px;
+    }
+
+    .b-intro p {
+      margin: 0;
+      color: #817e87;
+      font-size: 11px;
+    }
+
+    .facts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .fact {
+      min-height: 96px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 18px;
+      background: linear-gradient(150deg, rgba(255, 255, 255, 0.085), rgba(255, 255, 255, 0.025));
+    }
+
+    .fact-icon { color: #a983ff; font-size: 16px; }
+    .fact-value { margin-top: 12px; font-size: 24px; font-weight: 750; letter-spacing: -0.6px; }
+    .fact-label { margin-top: 2px; color: #88858e; font-size: 10px; }
+
+    .panel {
+      margin-top: 9px;
+      padding: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.07);
+      border-radius: 18px;
+      background: #0e0e11;
+    }
+
+    .panel-title {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .panel-title span:last-child { color: #77747d; font-size: 10px; font-weight: 500; }
+
+    .genre {
+      display: grid;
+      grid-template-columns: 66px 1fr 28px;
+      align-items: center;
+      gap: 8px;
+      margin: 9px 0;
+      color: #b9b7bd;
+      font-size: 10px;
+    }
+
+    .bar {
+      height: 7px;
+      overflow: hidden;
+      border-radius: 99px;
+      background: #242329;
+    }
+
+    .bar::after {
+      content: "";
+      display: block;
+      width: var(--w);
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #9e55ff, #445dff);
+    }
+
+    .coverage {
+      display: grid;
+      grid-template-columns: 54px 1fr;
+      gap: 14px;
+      align-items: center;
+    }
+
+    .ring {
+      width: 54px;
+      height: 54px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: conic-gradient(#9a55ff 0 72%, #26242a 72% 100%);
+    }
+
+    .ring::after {
+      content: "72%";
+      width: 42px;
+      height: 42px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: #0e0e11;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .coverage strong { font-size: 12px; }
+    .coverage p { margin: 4px 0 0; color: #77747d; font-size: 10px; line-height: 1.35; }
+
+    /* Variant C: dedicated listening analytics */
+    .c-shell {
+      height: 100%;
+      overflow: hidden;
+      padding: 4px 16px 28px;
+      background:
+        radial-gradient(circle at 20% 12%, rgba(112, 48, 225, 0.26), transparent 36%),
+        #000;
+    }
+
+    .c-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .eyebrow {
+      color: #918e97;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+    }
+
+    .c-title {
+      margin: 4px 0 0;
+      font-size: 30px;
+      letter-spacing: -1px;
+    }
+
+    .hero {
+      margin-top: 17px;
+      padding: 18px;
+      border: 1px solid rgba(171, 123, 255, 0.2);
+      border-radius: 24px;
+      background:
+        linear-gradient(145deg, rgba(121, 63, 224, 0.3), rgba(31, 26, 44, 0.72)),
+        #121015;
+    }
+
+    .hero-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+    }
+
+    .hero-label { color: #b3afba; font-size: 11px; }
+    .hero-value { margin-top: 4px; font-size: 37px; font-weight: 780; letter-spacing: -1.3px; }
+    .trend { color: #bba3ff; font-size: 11px; font-weight: 700; }
+
+    .chart {
+      height: 82px;
+      display: flex;
+      align-items: flex-end;
+      gap: 7px;
+      margin-top: 19px;
+    }
+
+    .chart i {
+      flex: 1;
+      height: var(--h);
+      min-height: 7px;
+      border-radius: 5px 5px 2px 2px;
+      background: linear-gradient(180deg, #b96dff, #5637cf);
+      opacity: var(--o, 1);
+    }
+
+    .chart-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 7px;
+      color: #716d77;
+      font-size: 9px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin: 18px 2px 9px;
+    }
+
+    .section-head strong { font-size: 14px; }
+    .section-head span { color: #8a5fff; font-size: 10px; }
+
+    .artist-row {
+      display: grid;
+      grid-template-columns: 40px 1fr auto;
+      align-items: center;
+      gap: 11px;
+      min-height: 55px;
+      padding: 7px 10px;
+      margin-bottom: 6px;
+      border-radius: 15px;
+      background: #0d0d10;
+    }
+
+    .artist-avatar {
+      width: 40px;
+      height: 40px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: white;
+      background: linear-gradient(145deg, #d05fe8, #4045b9);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .artist-name { font-size: 12px; font-weight: 650; }
+    .artist-meta { margin-top: 3px; color: #74717a; font-size: 9px; }
+    .artist-time { color: #a19da6; font-size: 10px; }
+
+    .future-callout {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 10px;
+      align-items: center;
+      margin-top: 11px;
+      padding: 11px 12px;
+      border: 1px solid rgba(143, 91, 255, 0.22);
+      border-radius: 14px;
+      background: rgba(102, 61, 179, 0.12);
+      color: #aaa5b2;
+      font-size: 9px;
+      line-height: 1.35;
+    }
+
+    .switcher {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      z-index: 30;
+      width: min(520px, calc(100vw - 28px));
+      min-height: 64px;
+      display: grid;
+      grid-template-columns: 48px 1fr 48px;
+      align-items: center;
+      transform: translateX(-50%);
+      padding: 8px;
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      border-radius: 22px;
+      background: rgba(26, 25, 30, 0.96);
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+      backdrop-filter: blur(20px);
+    }
+
+    .switcher button {
+      width: 44px;
+      height: 44px;
+      border: 0;
+      border-radius: 14px;
+      color: white;
+      background: #3a3741;
+      cursor: pointer;
+      font-size: 20px;
+    }
+
+    .switcher-copy {
+      min-width: 0;
+      padding: 0 10px;
+      text-align: center;
+    }
+
+    .switcher-name {
+      font-size: 13px;
+      font-weight: 720;
+    }
+
+    .switcher-desc {
+      overflow: hidden;
+      margin-top: 3px;
+      color: #9a97a0;
+      font-size: 10px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 760px) {
+      body { padding-top: 8px; }
+      .prototype-note { display: none; }
+      .phone { height: calc(100vh - 92px); min-height: 640px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Three variants of Stats for SunoPlayer, switchable via ?variant=A|B|C. -->
+  <aside class="prototype-note">
+    Throwaway prototype. All numbers are sample data. Stats is not implemented in the app.
+  </aside>
+
+  <main class="phone" aria-label="SunoPlayer Stats mock-up">
+    <div class="screen">
+      <header class="status" aria-hidden="true">
+        <span>19:00</span>
+        <span class="status-right"><span class="signal">●●●●</span><span>⌁</span><span class="battery"></span></span>
+      </header>
+
+      <section class="variant" data-variant="A" aria-label="Compact library snapshot">
+        <div class="a-shell">
+          <header class="a-header">
+            <div class="snapshot">
+              <div><span class="snapshot-value">48</span><span class="snapshot-label">tracks</span></div>
+              <div><span class="snapshot-value">3h 52m</span><span class="snapshot-label">music</span></div>
+              <div><span class="snapshot-value">6</span><span class="snapshot-label">playlists</span></div>
+              <span class="sample-pill">Sample</span>
+            </div>
+            <div class="action-row">
+              <div class="action"><span class="action-icon">▦</span><span>Browse</span></div>
+              <div class="action"><span class="action-icon">♬</span><span>Playlists</span></div>
+              <div class="action"><span class="action-icon">♡</span><span>Favorites</span></div>
+              <div class="action"><span class="action-icon">⊕</span><span>Import</span></div>
+            </div>
+            <div class="search-row">
+              <div class="search"><span>⌕</span><span>Search tracks…</span></div>
+              <div class="sort"><b>⇅</b><span>Sort</span></div>
+            </div>
+          </header>
+
+          <div class="track-list">
+            <div class="track">
+              <div class="cover">♪</div>
+              <div><div class="track-title">Midnight Drive</div><div class="track-artist">NEON</div></div>
+              <div class="track-time">3:30</div>
+            </div>
+            <div class="track">
+              <div class="cover sunset">♪</div>
+              <div><div class="track-title">Velvet Sky</div><div class="track-artist">Aurora Keys</div></div>
+              <div class="track-time">3:04</div>
+            </div>
+            <div class="track">
+              <div class="cover blue">♪</div>
+              <div><div class="track-title">Coastline</div><div class="track-artist">The Tides</div></div>
+              <div class="track-time">3:52</div>
+            </div>
+            <div class="track">
+              <div class="cover">♪</div>
+              <div><div class="track-title">Paper Planes</div><div class="track-artist">Lo-Fi Club</div></div>
+              <div class="track-time">2:47</div>
+            </div>
+          </div>
+
+          <div class="mini-player">
+            <div class="mini-cover"></div>
+            <div><div class="mini-title">Midnight Drive</div><div class="mini-sub">NEON</div></div>
+            <div class="play">▶</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant" data-variant="B" aria-label="Collection statistics in Browse">
+        <div class="b-shell">
+          <div class="sheet-grabber"></div>
+          <div class="page-title-row">
+            <h1 class="page-title">Browse</h1>
+            <button class="close" aria-label="Close">×</button>
+          </div>
+          <div class="segmented"><span>Library</span><span class="selected">Stats</span></div>
+          <div class="b-intro">
+            <div><h2>Your collection</h2><p>What is already on this iPhone</p></div>
+            <span class="sample-pill">Sample</span>
+          </div>
+          <div class="facts">
+            <div class="fact"><div class="fact-icon">♫</div><div class="fact-value">48</div><div class="fact-label">Downloaded tracks</div></div>
+            <div class="fact"><div class="fact-icon">◷</div><div class="fact-value">3h 52m</div><div class="fact-label">Total duration</div></div>
+            <div class="fact"><div class="fact-icon">≣</div><div class="fact-value">6</div><div class="fact-label">Playlists</div></div>
+            <div class="fact"><div class="fact-icon">♡</div><div class="fact-value">12</div><div class="fact-label">Favorites</div></div>
+          </div>
+          <div class="panel">
+            <div class="panel-title"><span>Genres</span><span>from track metadata</span></div>
+            <div class="genre"><span>Electronic</span><span class="bar" style="--w: 82%"></span><span>18</span></div>
+            <div class="genre"><span>Ambient</span><span class="bar" style="--w: 58%"></span><span>13</span></div>
+            <div class="genre"><span>Hip-hop</span><span class="bar" style="--w: 39%"></span><span>9</span></div>
+            <div class="genre"><span>Other</span><span class="bar" style="--w: 27%"></span><span>8</span></div>
+          </div>
+          <div class="panel coverage">
+            <div class="ring"></div>
+            <div><strong>Metadata coverage</strong><p>34 tracks have an artist and genre. 14 still need details.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="variant" data-variant="C" aria-label="Dedicated listening statistics">
+        <div class="c-shell">
+          <div class="c-title-row">
+            <div><div class="eyebrow">Your music habits</div><h1 class="c-title">Listening</h1></div>
+            <span class="future-pill">Future data</span>
+          </div>
+          <div class="hero">
+            <div class="hero-top">
+              <div><div class="hero-label">This month</div><div class="hero-value">12h 34m</div></div>
+              <div class="trend">↑ 18%</div>
+            </div>
+            <div class="chart" aria-label="Weekly listening chart">
+              <i style="--h: 28%; --o: .55"></i><i style="--h: 49%; --o: .68"></i><i style="--h: 35%; --o: .6"></i>
+              <i style="--h: 72%; --o: .84"></i><i style="--h: 55%; --o: .72"></i><i style="--h: 91%"></i><i style="--h: 64%; --o: .78"></i>
+            </div>
+            <div class="chart-labels"><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span></div>
+          </div>
+          <div class="section-head"><strong>Top artists</strong><span>See all</span></div>
+          <div class="artist-row">
+            <div class="artist-avatar">MG</div>
+            <div><div class="artist-name">Martin Garrix</div><div class="artist-meta">14 plays · 7 tracks</div></div>
+            <div class="artist-time">2h 16m</div>
+          </div>
+          <div class="artist-row">
+            <div class="artist-avatar">MM</div>
+            <div><div class="artist-name">Marshmello</div><div class="artist-meta">11 plays · 5 tracks</div></div>
+            <div class="artist-time">1h 41m</div>
+          </div>
+          <div class="artist-row">
+            <div class="artist-avatar">AU</div>
+            <div><div class="artist-name">Aurora Keys</div><div class="artist-meta">9 plays · 4 tracks</div></div>
+            <div class="artist-time">1h 03m</div>
+          </div>
+          <div class="section-head"><strong>Most played</strong><span>Last 30 days</span></div>
+          <div class="track" style="min-height: 68px; margin-bottom: 0;">
+            <div class="cover blue" style="width: 48px; height: 48px; border-radius: 11px;">♪</div>
+            <div><div class="track-title" style="font-size: 13px;">Midnight Drive</div><div class="track-artist">Played 8 times</div></div>
+            <div class="track-time">28m</div>
+          </div>
+          <div class="future-callout">
+            <span class="future-pill">Tracking</span>
+            <span>This option needs a new local listening-history model. Nothing would leave the iPhone.</span>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <nav class="switcher" aria-label="Prototype variants">
+    <button id="previous" aria-label="Previous variant">←</button>
+    <div class="switcher-copy">
+      <div class="switcher-name" id="variant-name"></div>
+      <div class="switcher-desc" id="variant-desc"></div>
+    </div>
+    <button id="next" aria-label="Next variant">→</button>
+  </nav>
+
+  <script>
+    const variants = [
+      { key: "A", name: "A — Compact snapshot", desc: "Useful totals directly above the library" },
+      { key: "B", name: "B — Stats in Browse", desc: "Collection facts, no listening tracking required" },
+      { key: "C", name: "C — Listening page", desc: "Rich habits dashboard, requires local history" }
+    ];
+
+    function currentIndex() {
+      const key = new URLSearchParams(location.search).get("variant") || "A";
+      const index = variants.findIndex((variant) => variant.key === key.toUpperCase());
+      return index < 0 ? 0 : index;
+    }
+
+    function render(index, updateURL = false) {
+      const item = variants[(index + variants.length) % variants.length];
+      document.querySelectorAll(".variant").forEach((view) => {
+        view.classList.toggle("active", view.dataset.variant === item.key);
+      });
+      document.getElementById("variant-name").textContent = item.name;
+      document.getElementById("variant-desc").textContent = item.desc;
+      document.title = `SunoPlayer Stats · ${item.key}`;
+      if (updateURL) {
+        const url = new URL(location.href);
+        url.searchParams.set("variant", item.key);
+        history.replaceState({}, "", url);
+      }
+    }
+
+    document.getElementById("previous").addEventListener("click", () => render(currentIndex() - 1, true));
+    document.getElementById("next").addEventListener("click", () => render(currentIndex() + 1, true));
+    document.addEventListener("keydown", (event) => {
+      if (event.target.matches("input, textarea, [contenteditable]")) return;
+      if (event.key === "ArrowLeft") render(currentIndex() - 1, true);
+      if (event.key === "ArrowRight") render(currentIndex() + 1, true);
+    });
+    window.addEventListener("popstate", () => render(currentIndex()));
+    render(currentIndex());
+  </script>
+</body>
+</html>
