@@ -218,7 +218,8 @@ final class MusicLibraryManager: ObservableObject {
     /// Libraries created by older app versions do not contain album or genre fields.
     /// Fill those values lazily from the existing local files without blocking launch.
     private func refreshMissingMetadata() {
-        let candidates = tracks.filter { $0.album == nil || $0.genre == nil }
+        let currentMetadataVersion = 1
+        let candidates = tracks.filter { $0.metadataScanVersion != currentMetadataVersion }
         guard !candidates.isEmpty else { return }
 
         Task {
@@ -230,20 +231,16 @@ final class MusicLibraryManager: ObservableObject {
                 )
                 guard let index = tracks.firstIndex(where: { $0.id == track.id }) else { continue }
 
-                var changed = false
                 if tracks[index].album == nil, let album = metadata.album {
                     tracks[index].album = album
-                    changed = true
                 }
                 if tracks[index].genre == nil, let genre = metadata.genre {
                     tracks[index].genre = genre
-                    changed = true
                 }
-                if changed {
-                    changedCount += 1
-                    // Persist progress for large libraries while keeping writes bounded.
-                    if changedCount.isMultiple(of: 25) { saveLibrary() }
-                }
+                tracks[index].metadataScanVersion = currentMetadataVersion
+                changedCount += 1
+                // Persist progress for large libraries while keeping writes bounded.
+                if changedCount.isMultiple(of: 25) { saveLibrary() }
             }
             if !changedCount.isMultiple(of: 25) { saveLibrary() }
         }

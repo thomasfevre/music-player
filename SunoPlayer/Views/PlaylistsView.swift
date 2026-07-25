@@ -85,7 +85,14 @@ struct PlaylistsView: View {
                 isPresented: $showImporter,
                 allowedContentTypes: [.m3uPlaylist, .plainText]
             ) { result in
-                if case .success(let url) = result { importM3U(from: url) }
+                switch result {
+                case .success(let url):
+                    importM3U(from: url)
+                case .failure(let error):
+                    if (error as? CocoaError)?.code != .userCancelled {
+                        importMessage = "The playlist could not be selected: \(error.localizedDescription)"
+                    }
+                }
             }
         }
         .preferredColorScheme(.dark)
@@ -199,6 +206,7 @@ struct PlaylistDetailView: View {
     @EnvironmentObject var playlists: PlaylistManager
     @EnvironmentObject var library: MusicLibraryManager
     @EnvironmentObject var player: AudioPlayerManager
+    @Environment(\.editMode) private var editMode
 
     @State private var showAddTracks = false
     @State private var showRenameAlert = false
@@ -209,6 +217,7 @@ struct PlaylistDetailView: View {
     @State private var selectedIDs: Set<UUID> = []
     @State private var showExporter = false
     @State private var exportDocument = M3UPlaylistDocument()
+    @State private var operationMessage: String?
 
     private var playlist: Playlist? {
         playlists.playlists.first { $0.id == playlistID }
@@ -224,13 +233,14 @@ struct PlaylistDetailView: View {
     }
 
     private var visibleTracks: [Track] {
-        let filtered = searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let filtered = query.isEmpty
             ? tracks
             : tracks.filter {
-                $0.title.localizedCaseInsensitiveContains(searchText) ||
-                $0.displayArtist.localizedCaseInsensitiveContains(searchText) ||
-                ($0.album?.localizedCaseInsensitiveContains(searchText) ?? false) ||
-                ($0.genre?.localizedCaseInsensitiveContains(searchText) ?? false)
+                $0.title.localizedCaseInsensitiveContains(query) ||
+                $0.displayArtist.localizedCaseInsensitiveContains(query) ||
+                ($0.album?.localizedCaseInsensitiveContains(query) ?? false) ||
+                ($0.genre?.localizedCaseInsensitiveContains(query) ?? false)
             }
         return filtered.sorted {
             switch sortOrder {
@@ -251,6 +261,10 @@ struct PlaylistDetailView: View {
         .navigationTitle(playlist?.name ?? "Playlist")
         .navigationBarTitleDisplayMode(.inline)
         .searchable(text: $searchText, prompt: "Search this playlist")
+        .onChange(of: searchText) {
+            guard isSelecting else { return }
+            selectedIDs.formIntersection(Set(visibleTracks.map(\.id)))
+        }
         .toolbar { toolbarItems }
         .safeAreaInset(edge: .bottom) {
             if isSelecting {
@@ -269,12 +283,28 @@ struct PlaylistDetailView: View {
             Button("Rename", action: renamePlaylist)
                 .disabled(renamedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
         }
+        .alert(
+            "Playlist Export",
+            isPresented: Binding(
+                get: { operationMessage != nil },
+                set: { if !$0 { operationMessage = nil } }
+            )
+        ) {
+            Button("OK") { operationMessage = nil }
+        } message: {
+            Text(operationMessage ?? "")
+        }
         .fileExporter(
             isPresented: $showExporter,
             document: exportDocument,
             contentType: .m3uPlaylist,
             defaultFilename: playlist?.name ?? "Playlist"
-        ) { _ in }
+        ) { result in
+            if case .failure(let error) = result,
+               (error as? CocoaError)?.code != .userCancelled {
+                operationMessage = "The playlist could not be exported: \(error.localizedDescription)"
+            }
+        }
     }
 
     private var trackList: some View {
@@ -352,7 +382,11 @@ struct PlaylistDetailView: View {
     @ToolbarContentBuilder
     private var toolbarItems: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            if canReorder && !isSelecting { EditButton() }
+            if canManuallyEdit &&
+                !isSelecting &&
+                (canReorder || editMode?.wrappedValue.isEditing == true) {
+                EditButton()
+            }
         }
         ToolbarItem(placement: .topBarTrailing) {
             Button {

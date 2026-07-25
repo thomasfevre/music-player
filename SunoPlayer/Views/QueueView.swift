@@ -15,6 +15,11 @@ struct QueueView: View {
         return Array(player.activeQueue[(index + 1)...])
     }
 
+    private var visibleQueue: [Track] {
+        guard let current = player.currentTrack else { return upcoming }
+        return [current] + upcoming
+    }
+
     var body: some View {
         NavigationStack {
             List {
@@ -53,7 +58,7 @@ struct QueueView: View {
                         } label: {
                             Label("Save Queue as Playlist", systemImage: "music.note.list")
                         }
-                        .disabled(player.activeQueue.isEmpty)
+                        .disabled(visibleQueue.isEmpty)
                         Button(role: .destructive) {
                             player.clearUpcoming()
                         } label: {
@@ -72,6 +77,17 @@ struct QueueView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .alert(
+            "Playlist Error",
+            isPresented: Binding(
+                get: { playlists.lastError != nil },
+                set: { if !$0 { playlists.clearError() } }
+            )
+        ) {
+            Button("OK") { playlists.clearError() }
+        } message: {
+            Text(playlists.lastError ?? "")
+        }
     }
 
     private func queueRow(_ track: Track, isCurrent: Bool) -> some View {
@@ -92,6 +108,6 @@ struct QueueView: View {
 
     private func saveQueue() {
         let created = playlists.createPlaylist(name: playlistName)
-        playlists.addTracks(player.activeQueue.map(\.id), to: created)
+        playlists.addTracks(visibleQueue.map(\.id), to: created)
     }
 }

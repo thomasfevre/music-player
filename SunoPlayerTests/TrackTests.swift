@@ -74,6 +74,7 @@ final class TrackTests: XCTestCase {
         XCTAssertEqual(decoded.artworkFileName, "x.img")
         XCTAssertEqual(decoded.album, "Album")
         XCTAssertEqual(decoded.genre, "Synthwave")
+        XCTAssertEqual(decoded.metadataScanVersion, 1)
     }
 
     func testDecodesLegacyJSONWithoutArtworkKey() throws {
@@ -86,6 +87,7 @@ final class TrackTests: XCTestCase {
         XCTAssertNil(decoded.artworkFileName)
         XCTAssertNil(decoded.album)
         XCTAssertNil(decoded.genre)
+        XCTAssertNil(decoded.metadataScanVersion)
         XCTAssertEqual(decoded.title, "Old")
     }
 }

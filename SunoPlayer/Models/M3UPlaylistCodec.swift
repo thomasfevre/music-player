@@ -16,13 +16,26 @@ enum M3UPlaylistCodec {
         var result: [String] = []
 
         for rawLine in text.components(separatedBy: .newlines) {
-            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+            let line = rawLine
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\u{feff}"))
             guard !line.isEmpty, !line.hasPrefix("#") else { continue }
-            let fileName = URL(fileURLWithPath: line).lastPathComponent
+            let fileName = fileName(from: line)
+            guard !fileName.isEmpty else { continue }
             let key = fileName.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
             if seen.insert(key).inserted { result.append(fileName) }
         }
         return result
+    }
+
+    private static func fileName(from line: String) -> String {
+        if let url = URL(string: line), url.isFileURL {
+            return url.lastPathComponent
+        }
+        let normalized = line.replacingOccurrences(of: "\\", with: "/")
+        let component = normalized.split(separator: "/", omittingEmptySubsequences: true).last
+            .map(String.init) ?? normalized
+        return component.removingPercentEncoding ?? component
     }
 
     static func resolve(_ text: String, in library: [Track]) -> Resolution {

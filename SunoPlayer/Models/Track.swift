@@ -47,6 +47,10 @@ struct Track: Identifiable, Codable, Equatable {
     /// Optional and decoded leniently so libraries saved before this feature still load.
     var artworkFileName: String?
 
+    /// Version of the metadata extraction pass applied to this track.
+    /// Optional so libraries saved before metadata browsing can be backfilled once.
+    var metadataScanVersion: Int?
+
     /// Hue values (0–1) used to procedurally generate a gradient for this track.
     var gradientHue1: Double
     var gradientHue2: Double
@@ -106,6 +110,7 @@ struct Track: Identifiable, Codable, Equatable {
         duration: TimeInterval = 0,
         dateImported: Date = Date(),
         artworkFileName: String? = nil,
+        metadataScanVersion: Int? = 1,
         gradientHue1: Double? = nil,
         gradientHue2: Double? = nil
     ) {
@@ -118,6 +123,7 @@ struct Track: Identifiable, Codable, Equatable {
         self.duration = duration
         self.dateImported = dateImported
         self.artworkFileName = artworkFileName
+        self.metadataScanVersion = metadataScanVersion
 
         // Derive gradient hues from a stable file-name hash for visual consistency.
         let hue = Self.stableHue(for: fileName)

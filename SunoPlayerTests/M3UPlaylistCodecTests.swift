@@ -29,4 +29,13 @@ final class M3UPlaylistCodecTests: XCTestCase {
 
         XCTAssertEqual(M3UPlaylistCodec.fileNames(in: text), ["song.mp3"])
     }
+
+    func testDecodeNormalizesWindowsPathsFileURLsAndBOM() {
+        let text = "\u{feff}#EXTM3U\nC:\\\\Music\\\\Song One.mp3\nfile:///Music/My%20Song.mp3\n"
+
+        XCTAssertEqual(
+            M3UPlaylistCodec.fileNames(in: text),
+            ["Song One.mp3", "My Song.mp3"]
+        )
+    }
 }
