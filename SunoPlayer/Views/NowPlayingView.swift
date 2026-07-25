@@ -16,8 +16,12 @@ struct NowPlayingView: View {
 
     @StateObject private var artwork = ArtworkLoader()
     @State private var showQueue = false
+    @State private var showArtworkEditor = false
 
-    private var track: Track? { player.currentTrack }
+    private var track: Track? {
+        guard let current = player.currentTrack else { return nil }
+        return library.tracks.first { $0.id == current.id } ?? current
+    }
 
     private var artSize: CGFloat {
         let width = UIApplication.shared.connectedScenes
@@ -86,10 +90,17 @@ struct NowPlayingView: View {
             artwork.load(for: track)
         }
         .onChange(of: track?.id) { artwork.load(for: track) }
+        .onChange(of: track?.preferredArtworkFileName) { artwork.load(for: track) }
         .sheet(isPresented: $showQueue) {
             QueueView()
                 .environmentObject(player)
                 .environmentObject(playlists)
+        }
+        .sheet(isPresented: $showArtworkEditor) {
+            if let track {
+                TrackArtworkEditorView(trackID: track.id)
+                    .environmentObject(library)
+            }
         }
     }
 
@@ -192,6 +203,22 @@ struct NowPlayingView: View {
         .animation(.easeInOut(duration: 0.5), value: player.isPlaying)
         .scaleEffect(player.isPlaying ? 1.0 : 0.93)
         .animation(.spring(response: 0.5, dampingFraction: 0.7), value: player.isPlaying)
+        .overlay(alignment: .topTrailing) {
+            Button {
+                showArtworkEditor = true
+            } label: {
+                Label("Edit Artwork", systemImage: "pencil")
+                    .labelStyle(.iconOnly)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Customize Track Artwork")
+            .padding(12)
+            .disabled(track == nil)
+        }
     }
 
     // MARK: - Track Info

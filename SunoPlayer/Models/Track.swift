@@ -47,6 +47,14 @@ struct Track: Identifiable, Codable, Equatable {
     /// Optional and decoded leniently so libraries saved before this feature still load.
     var artworkFileName: String?
 
+    /// File name of artwork explicitly selected by the user. Keeping it separate from embedded
+    /// artwork lets "Reset" restore the original cover without re-reading the audio file.
+    var customArtworkFileName: String?
+
+    /// True when the user explicitly chose a generated color style instead of embedded artwork.
+    /// Optional for backward-compatible decoding of existing libraries.
+    var usesGeneratedArtwork: Bool?
+
     /// Version of the metadata extraction pass applied to this track.
     /// Optional so libraries saved before metadata browsing can be backfilled once.
     var metadataScanVersion: Int?
@@ -74,10 +82,27 @@ struct Track: Identifiable, Codable, Equatable {
         Self.documentsDirectory.appendingPathComponent(fileName)
     }
 
-    /// Resolved URL of the extracted cover art, if any.
+    /// The custom cover takes precedence over artwork embedded in the audio file.
+    var preferredArtworkFileName: String? {
+        if let customArtworkFileName { return customArtworkFileName }
+        if usesGeneratedArtwork == true { return nil }
+        return artworkFileName
+    }
+
+    /// Resolved URL of the artwork currently shown by the app, if any.
     var artworkURL: URL? {
+        guard let preferredArtworkFileName else { return nil }
+        return Self.artworkDirectory.appendingPathComponent(preferredArtworkFileName)
+    }
+
+    var embeddedArtworkURL: URL? {
         guard let artworkFileName else { return nil }
         return Self.artworkDirectory.appendingPathComponent(artworkFileName)
+    }
+
+    var customArtworkURL: URL? {
+        guard let customArtworkFileName else { return nil }
+        return Self.artworkDirectory.appendingPathComponent(customArtworkFileName)
     }
 
     var displayArtist: String {
@@ -92,10 +117,17 @@ struct Track: Identifiable, Codable, Equatable {
         genre ?? "Unknown Genre"
     }
 
+    var displayGradientHues: (Double, Double) {
+        usesGeneratedArtwork == true
+            ? (gradientHue1, gradientHue2)
+            : (ArtworkTheme.violet.hue1, ArtworkTheme.violet.hue2)
+    }
+
     var gradientColors: [Color] {
-        [
-            Color(hue: gradientHue1, saturation: 0.7, brightness: 0.75),
-            Color(hue: gradientHue2, saturation: 0.8, brightness: 0.55)
+        let hues = displayGradientHues
+        return [
+            Color(hue: hues.0, saturation: 0.7, brightness: 0.75),
+            Color(hue: hues.1, saturation: 0.8, brightness: 0.55)
         ]
     }
 
@@ -110,6 +142,8 @@ struct Track: Identifiable, Codable, Equatable {
         duration: TimeInterval = 0,
         dateImported: Date = Date(),
         artworkFileName: String? = nil,
+        customArtworkFileName: String? = nil,
+        usesGeneratedArtwork: Bool? = nil,
         metadataScanVersion: Int? = 1,
         gradientHue1: Double? = nil,
         gradientHue2: Double? = nil
@@ -123,6 +157,8 @@ struct Track: Identifiable, Codable, Equatable {
         self.duration = duration
         self.dateImported = dateImported
         self.artworkFileName = artworkFileName
+        self.customArtworkFileName = customArtworkFileName
+        self.usesGeneratedArtwork = usesGeneratedArtwork
         self.metadataScanVersion = metadataScanVersion
 
         // Derive gradient hues from a stable file-name hash for visual consistency.

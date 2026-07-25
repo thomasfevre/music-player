@@ -85,10 +85,18 @@ final class PlaylistTests: XCTestCase {
     }
 
     func testCodableRoundTrip() throws {
-        var p = Playlist(name: "Road Trip")
+        var p = Playlist(
+            name: "Road Trip",
+            artworkFileName: "road.jpg",
+            artworkIconName: "car.fill",
+            artworkHue1: 0.2,
+            artworkHue2: 0.3
+        )
         p.addTrack(UUID()); p.addTrack(UUID())
         let decoded = try JSONDecoder().decode(Playlist.self, from: JSONEncoder().encode(p))
         XCTAssertEqual(decoded, p)
+        XCTAssertEqual(decoded.displayArtworkIconName, "car.fill")
+        XCTAssertEqual(decoded.artworkURL, Playlist.artworkDirectory.appendingPathComponent("road.jpg"))
     }
 
     // MARK: - Resolver
@@ -156,5 +164,10 @@ final class PlaylistTests: XCTestCase {
         let decoded = try JSONDecoder().decode(Playlist.self, from: Data(json.utf8))
 
         XCTAssertNil(decoded.smartRule)
+        XCTAssertNil(decoded.artworkFileName)
+        XCTAssertNil(decoded.artworkIconName)
+        XCTAssertNil(decoded.artworkHue1)
+        XCTAssertNil(decoded.artworkHue2)
+        XCTAssertEqual(decoded.displayArtworkIconName, "music.note.list")
     }
 }

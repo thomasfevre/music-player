@@ -11,10 +11,10 @@ struct LibraryView: View {
     @Binding var showNowPlaying: Bool
 
     @State private var showFilePicker = false
-    @State private var showSortMenu = false
     @State private var showPlaylists = false
     @State private var showBrowser = false
     @State private var pendingDeletion: Track?
+    @State private var artworkTrack: Track?
 
     // Bottom padding when mini player is visible
     private var listBottomPadding: CGFloat {
@@ -38,7 +38,9 @@ struct LibraryView: View {
             // Keep the header light on scroll: no nav-bar background. The search field keeps
             // its own liquid-glass material.
             .toolbarBackground(.hidden, for: .navigationBar)
-            .toolbar { toolbarItems }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                libraryActions
+            }
             .searchable(
                 text: $library.searchText,
                 placement: .navigationBarDrawer(displayMode: .always),
@@ -63,6 +65,10 @@ struct LibraryView: View {
                 LibraryBrowserView()
                     .environmentObject(library)
                     .environmentObject(player)
+            }
+            .sheet(item: $artworkTrack) { track in
+                TrackArtworkEditorView(trackID: track.id)
+                    .environmentObject(library)
             }
             .alert(item: $pendingDeletion) { track in
                 Alert(
@@ -119,6 +125,11 @@ struct LibraryView: View {
                             let fav = library.isFavorite(track)
                             Label(fav ? "Remove from Favorites" : "Add to Favorites",
                                   systemImage: fav ? "heart.slash" : "heart")
+                        }
+                        Button {
+                            artworkTrack = track
+                        } label: {
+                            Label("Customize Artwork", systemImage: "photo.badge.plus")
                         }
                         Menu {
                             ForEach(playlists.playlists.filter { $0.smartRule == nil }) { playlist in
@@ -226,70 +237,63 @@ struct LibraryView: View {
         .padding()
     }
 
-    // MARK: Toolbar
-    @ToolbarContentBuilder
-    private var toolbarItems: some ToolbarContent {
-        ToolbarItem(placement: .topBarTrailing) {
-            HStack(spacing: 16) {
-                Button {
-                    showBrowser = true
-                } label: {
-                    Image(systemName: "square.grid.2x2")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white.opacity(0.8))
-                }
+    // MARK: Library actions
+    private var libraryActions: some View {
+        HStack(spacing: 0) {
+            Button {
+                showBrowser = true
+            } label: {
+                LibraryActionLabel(title: "Browse", systemImage: "square.grid.2x2")
+            }
 
-                // Playlists
-                Button {
-                    showPlaylists = true
-                } label: {
-                    Image(systemName: "music.note.list")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white.opacity(0.8))
-                }
+            Button {
+                showPlaylists = true
+            } label: {
+                LibraryActionLabel(title: "Playlists", systemImage: "music.note.list")
+            }
 
-                // Favorites filter toggle
-                Button {
-                    library.showFavoritesOnly.toggle()
-                } label: {
-                    Image(systemName: library.showFavoritesOnly ? "heart.fill" : "heart")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(library.showFavoritesOnly ? .pink : .white.opacity(0.8))
-                }
+            Button {
+                library.showFavoritesOnly.toggle()
+                UISelectionFeedbackGenerator().selectionChanged()
+            } label: {
+                LibraryActionLabel(
+                    title: "Favorites",
+                    systemImage: library.showFavoritesOnly ? "heart.fill" : "heart",
+                    tint: library.showFavoritesOnly ? .pink : .white.opacity(0.82)
+                )
+            }
 
-                // Sort menu
-                Menu {
-                    ForEach(SortOrder.allCases) { order in
-                        Button {
-                            library.sortOrder = order
-                        } label: {
-                            HStack {
-                                Text(order.rawValue)
-                                if library.sortOrder == order {
-                                    Image(systemName: "checkmark")
-                                }
-                            }
-                        }
+            Menu {
+                ForEach(SortOrder.allCases) { order in
+                    Button {
+                        library.sortOrder = order
+                    } label: {
+                        Label(
+                            order.rawValue,
+                            systemImage: library.sortOrder == order ? "checkmark" : "circle"
+                        )
                     }
-                } label: {
-                    Image(systemName: "arrow.up.arrow.down")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white.opacity(0.8))
                 }
+            } label: {
+                LibraryActionLabel(title: "Sort", systemImage: "arrow.up.arrow.down")
+            }
 
-                // Import button
-                Button {
-                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                    showFilePicker = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(8)
-                        .background(.ultraThinMaterial, in: Circle())
-                }
+            Button {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                showFilePicker = true
+            } label: {
+                LibraryActionLabel(title: "Import", systemImage: "plus.circle.fill")
             }
         }
+        .buttonStyle(.plain)
+        .padding(.vertical, 7)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        .overlay {
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(.white.opacity(0.09), lineWidth: 1)
+        }
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
     }
 
     private func delete(_ track: Track) {
@@ -298,5 +302,26 @@ struct LibraryView: View {
             player.handleTrackDeleted(track)
             playlists.removeTrackFromAll(track.id)
         }
+    }
+}
+
+private struct LibraryActionLabel: View {
+    let title: String
+    let systemImage: String
+    var tint: Color = .white.opacity(0.82)
+
+    var body: some View {
+        VStack(spacing: 5) {
+            Image(systemName: systemImage)
+                .font(.system(size: 18, weight: .semibold))
+                .frame(height: 22)
+            Text(title)
+                .font(.caption2.weight(.medium))
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .foregroundStyle(tint)
+        .frame(maxWidth: .infinity, minHeight: 48)
+        .contentShape(Rectangle())
     }
 }

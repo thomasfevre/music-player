@@ -1,0 +1,412 @@
+import PhotosUI
+import SwiftUI
+
+// MARK: - Reusable artwork
+
+struct TrackArtworkView: View {
+    let track: Track
+    var size: CGFloat = 54
+    var cornerRadius: CGFloat = 10
+    var symbolName = "music.note"
+
+    @StateObject private var artwork = ArtworkLoader()
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(
+                    LinearGradient(
+                        colors: track.gradientColors,
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            if let image = artwork.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: symbolName)
+                    .font(.system(size: max(16, size * 0.32), weight: .medium))
+                    .foregroundStyle(.white.opacity(0.86))
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .onAppear { artwork.load(for: track) }
+        .onChange(of: track.preferredArtworkFileName) {
+            artwork.load(for: track)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+struct PlaylistArtworkView: View {
+    let playlist: Playlist
+    var size: CGFloat = 52
+    var cornerRadius: CGFloat = 12
+
+    @StateObject private var artwork = ArtworkLoader()
+
+    private var colors: [Color] {
+        let hues = playlist.displayArtworkHues
+        return [
+            Color(hue: hues.0, saturation: 0.72, brightness: 0.84),
+            Color(hue: hues.1, saturation: 0.82, brightness: 0.56)
+        ]
+    }
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .fill(
+                    LinearGradient(
+                        colors: colors,
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+
+            if let image = artwork.image {
+                Image(uiImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                Image(systemName: playlist.displayArtworkIconName)
+                    .font(.system(size: max(18, size * 0.34), weight: .semibold))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.2), radius: 4, y: 2)
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: cornerRadius)
+                .stroke(.white.opacity(0.14), lineWidth: 1)
+        }
+        .onAppear {
+            artwork.load(fileName: playlist.artworkFileName, url: playlist.artworkURL)
+        }
+        .onChange(of: playlist.artworkFileName) {
+            artwork.load(fileName: playlist.artworkFileName, url: playlist.artworkURL)
+        }
+        .accessibilityHidden(true)
+    }
+}
+
+// MARK: - Track editor
+
+struct TrackArtworkEditorView: View {
+    let trackID: UUID
+
+    @EnvironmentObject private var library: MusicLibraryManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var previewVersion = 0
+    @State private var isImportingPhoto = false
+
+    private var track: Track? {
+        library.tracks.first { $0.id == trackID }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 28) {
+                    if let track {
+                        TrackArtworkView(track: track, size: 190, cornerRadius: 28, symbolName: "waveform")
+                            .id(previewVersion)
+                            .shadow(color: track.gradientColors[0].opacity(0.42), radius: 30, y: 12)
+                            .padding(.top, 18)
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            sectionTitle("Photo")
+                            ArtworkPhotoPickerButton(isLoading: $isImportingPhoto) {
+                                await library.setCustomArtwork($0, for: track)
+                            } onSaved: {
+                                previewVersion += 1
+                            } onError: {
+                                library.reportArtworkError($0)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            sectionTitle("Color")
+                            themeGrid { theme in
+                                if library.setArtworkTheme(theme, for: track) {
+                                    previewVersion += 1
+                                }
+                            }
+                            .disabled(isImportingPhoto)
+                        }
+
+                        Button(role: .destructive) {
+                            if library.resetArtwork(for: track) {
+                                previewVersion += 1
+                            }
+                        } label: {
+                            Label(
+                                track.artworkFileName == nil ? "Restore Automatic Colors" : "Restore Original Artwork",
+                                systemImage: "arrow.counterclockwise"
+                            )
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isImportingPhoto)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
+            }
+            .background(Color.black.ignoresSafeArea())
+            .navigationTitle("Track Artwork")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .disabled(isImportingPhoto)
+                }
+            }
+            .alert(
+                "Artwork Error",
+                isPresented: Binding(
+                    get: { library.lastError != nil },
+                    set: { if !$0 { library.clearError() } }
+                )
+            ) {
+                Button("OK") { library.clearError() }
+            } message: {
+                Text(library.lastError ?? "")
+            }
+        }
+        .preferredColorScheme(.dark)
+        .interactiveDismissDisabled(isImportingPhoto)
+    }
+}
+
+// MARK: - Playlist editor
+
+struct PlaylistArtworkEditorView: View {
+    let playlistID: UUID
+
+    @EnvironmentObject private var playlists: PlaylistManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var previewVersion = 0
+    @State private var isImportingPhoto = false
+
+    private var playlist: Playlist? {
+        playlists.playlists.first { $0.id == playlistID }
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 28) {
+                    if let playlist {
+                        PlaylistArtworkView(playlist: playlist, size: 190, cornerRadius: 28)
+                            .id(previewVersion)
+                            .shadow(color: previewShadow(for: playlist), radius: 30, y: 12)
+                            .padding(.top, 18)
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            sectionTitle("Photo")
+                            ArtworkPhotoPickerButton(isLoading: $isImportingPhoto) {
+                                await playlists.setCustomArtwork($0, for: playlist)
+                            } onSaved: {
+                                previewVersion += 1
+                            } onError: {
+                                playlists.reportArtworkError($0)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            sectionTitle("Icon")
+                            LazyVGrid(
+                                columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 4),
+                                spacing: 12
+                            ) {
+                                ForEach(PlaylistArtworkIcon.presets) { icon in
+                                    Button {
+                                        if playlists.setArtworkStyle(
+                                            iconName: icon.systemImage,
+                                            theme: selectedTheme(for: playlist),
+                                            for: playlist
+                                        ) {
+                                            previewVersion += 1
+                                        }
+                                    } label: {
+                                        Image(systemName: icon.systemImage)
+                                            .font(.system(size: 21, weight: .medium))
+                                            .foregroundStyle(.white)
+                                            .frame(maxWidth: .infinity, minHeight: 52)
+                                            .background(
+                                                playlist.artworkFileName == nil &&
+                                                playlist.displayArtworkIconName == icon.systemImage
+                                                    ? Color.purple.opacity(0.38)
+                                                    : Color.white.opacity(0.07),
+                                                in: RoundedRectangle(cornerRadius: 12)
+                                            )
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(icon.name)
+                                }
+                            }
+                            .disabled(isImportingPhoto)
+                        }
+
+                        VStack(alignment: .leading, spacing: 14) {
+                            sectionTitle("Background")
+                            themeGrid { theme in
+                                if playlists.setArtworkStyle(
+                                    iconName: playlist.displayArtworkIconName,
+                                    theme: theme,
+                                    for: playlist
+                                ) {
+                                    previewVersion += 1
+                                }
+                            }
+                            .disabled(isImportingPhoto)
+                        }
+
+                        Button(role: .destructive) {
+                            if playlists.resetArtwork(for: playlist) {
+                                previewVersion += 1
+                            }
+                        } label: {
+                            Label("Restore Default Artwork", systemImage: "arrow.counterclockwise")
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(isImportingPhoto)
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.bottom, 28)
+            }
+            .background(Color.black.ignoresSafeArea())
+            .navigationTitle("Playlist Artwork")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                        .disabled(isImportingPhoto)
+                }
+            }
+            .alert(
+                "Artwork Error",
+                isPresented: Binding(
+                    get: { playlists.lastError != nil },
+                    set: { if !$0 { playlists.clearError() } }
+                )
+            ) {
+                Button("OK") { playlists.clearError() }
+            } message: {
+                Text(playlists.lastError ?? "")
+            }
+        }
+        .preferredColorScheme(.dark)
+        .interactiveDismissDisabled(isImportingPhoto)
+    }
+
+    private func selectedTheme(for playlist: Playlist) -> ArtworkTheme {
+        let hues = playlist.displayArtworkHues
+        return ArtworkTheme.presets.min {
+            abs($0.hue1 - hues.0) + abs($0.hue2 - hues.1) <
+                abs($1.hue1 - hues.0) + abs($1.hue2 - hues.1)
+        } ?? .violet
+    }
+
+    private func previewShadow(for playlist: Playlist) -> Color {
+        let hues = playlist.displayArtworkHues
+        return Color(hue: hues.0, saturation: 0.72, brightness: 0.7).opacity(0.42)
+    }
+
+}
+
+// MARK: - Editor components
+
+private func sectionTitle(_ title: String) -> some View {
+    Text(title)
+        .font(.headline)
+        .foregroundStyle(.white)
+}
+
+private struct ArtworkPhotoPickerButton: View {
+    @Binding var isLoading: Bool
+
+    let save: (Data) async -> Bool
+    let onSaved: () -> Void
+    let onError: (String) -> Void
+
+    @State private var selectedPhoto: PhotosPickerItem?
+
+    var body: some View {
+        PhotosPicker(selection: $selectedPhoto, matching: .images) {
+            Label(
+                isLoading ? "Loading Photo…" : "Choose from Photos",
+                systemImage: "photo.on.rectangle"
+            )
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.purple)
+        .disabled(isLoading)
+        .onChange(of: selectedPhoto) {
+            importSelectedPhoto()
+        }
+    }
+
+    private func importSelectedPhoto() {
+        guard let selectedPhoto else { return }
+        isLoading = true
+        Task {
+            defer { isLoading = false }
+            do {
+                guard let data = try await selectedPhoto.loadTransferable(type: Data.self) else {
+                    throw CocoaError(.fileReadCorruptFile)
+                }
+                if await save(data) {
+                    onSaved()
+                }
+            } catch {
+                onError("The selected photo could not be loaded: \(error.localizedDescription)")
+            }
+        }
+    }
+}
+
+private func themeGrid(action: @escaping (ArtworkTheme) -> Void) -> some View {
+    LazyVGrid(
+        columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3),
+        spacing: 12
+    ) {
+        ForEach(ArtworkTheme.presets) { theme in
+            Button {
+                action(theme)
+            } label: {
+                VStack(spacing: 8) {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [
+                                    Color(hue: theme.hue1, saturation: 0.72, brightness: 0.86),
+                                    Color(hue: theme.hue2, saturation: 0.82, brightness: 0.58)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 42, height: 42)
+                        .overlay(Circle().stroke(.white.opacity(0.2), lineWidth: 1))
+                    Text(theme.name)
+                        .font(.caption)
+                        .foregroundStyle(.white.opacity(0.78))
+                }
+                .frame(maxWidth: .infinity, minHeight: 76)
+                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}

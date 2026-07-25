@@ -14,6 +14,7 @@ struct PlaylistsView: View {
     @State private var newName = ""
     @State private var path: [UUID] = []
     @State private var importMessage: String?
+    @State private var artworkPlaylist: Playlist?
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -81,6 +82,10 @@ struct PlaylistsView: View {
                 SmartPlaylistEditorView { created in path.append(created.id) }
                     .environmentObject(playlists)
             }
+            .sheet(item: $artworkPlaylist) { playlist in
+                PlaylistArtworkEditorView(playlistID: playlist.id)
+                    .environmentObject(playlists)
+            }
             .fileImporter(
                 isPresented: $showImporter,
                 allowedContentTypes: [.m3uPlaylist, .plainText]
@@ -103,11 +108,7 @@ struct PlaylistsView: View {
             ForEach(playlists.playlists) { playlist in
                 NavigationLink(value: playlist.id) {
                     HStack(spacing: 14) {
-                        Image(systemName: playlist.smartRule == nil ? "music.note.list" : "wand.and.stars")
-                            .font(.system(size: 20))
-                            .foregroundColor(.white.opacity(0.7))
-                            .frame(width: 44, height: 44)
-                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                        PlaylistArtworkView(playlist: playlist, size: 48, cornerRadius: 11)
                         VStack(alignment: .leading, spacing: 3) {
                             Text(playlist.name)
                                 .font(.system(size: 16, weight: .medium))
@@ -126,6 +127,13 @@ struct PlaylistsView: View {
                     }
                 }
                 .listRowBackground(Color.white.opacity(0.04))
+                .contextMenu {
+                    Button {
+                        artworkPlaylist = playlist
+                    } label: {
+                        Label("Customize Artwork", systemImage: "photo.badge.plus")
+                    }
+                }
             }
             .onDelete { playlists.deletePlaylists(at: $0) }
         }
@@ -218,6 +226,8 @@ struct PlaylistDetailView: View {
     @State private var showExporter = false
     @State private var exportDocument = M3UPlaylistDocument()
     @State private var operationMessage: String?
+    @State private var showArtworkEditor = false
+    @State private var artworkTrack: Track?
 
     private var playlist: Playlist? {
         playlists.playlists.first { $0.id == playlistID }
@@ -276,6 +286,14 @@ struct PlaylistDetailView: View {
                 .environmentObject(playlists)
                 .environmentObject(library)
                 .environmentObject(player)
+        }
+        .sheet(isPresented: $showArtworkEditor) {
+            PlaylistArtworkEditorView(playlistID: playlistID)
+                .environmentObject(playlists)
+        }
+        .sheet(item: $artworkTrack) { track in
+            TrackArtworkEditorView(trackID: track.id)
+                .environmentObject(library)
         }
         .alert("Rename Playlist", isPresented: $showRenameAlert) {
             TextField("Name", text: $renamedName)
@@ -346,6 +364,11 @@ struct PlaylistDetailView: View {
                     Button { player.enqueueLater(track) } label: {
                         Label("Play Later", systemImage: "text.append")
                     }
+                    Button {
+                        artworkTrack = track
+                    } label: {
+                        Label("Customize Artwork", systemImage: "photo.badge.plus")
+                    }
                     if playlist?.smartRule == nil {
                         Button(role: .destructive) {
                             if let playlist { playlists.removeTrack(track.id, from: playlist) }
@@ -362,7 +385,24 @@ struct PlaylistDetailView: View {
     }
 
     private var summary: some View {
-        HStack {
+        HStack(spacing: 14) {
+            if let playlist {
+                Button {
+                    showArtworkEditor = true
+                } label: {
+                    PlaylistArtworkView(playlist: playlist, size: 72, cornerRadius: 16)
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: "pencil.circle.fill")
+                                .font(.title3)
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(.white, .purple)
+                                .background(.black, in: Circle())
+                                .offset(x: 5, y: 5)
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Customize Playlist Artwork")
+            }
             VStack(alignment: .leading, spacing: 3) {
                 Text("\(tracks.count) track\(tracks.count == 1 ? "" : "s")")
                     .font(.headline)
@@ -429,6 +469,11 @@ struct PlaylistDetailView: View {
                     Label("Rename Playlist", systemImage: "pencil")
                 }
                 Button {
+                    showArtworkEditor = true
+                } label: {
+                    Label("Customize Artwork", systemImage: "photo.badge.plus")
+                }
+                Button {
                     exportDocument = M3UPlaylistDocument(text: M3UPlaylistCodec.encode(tracks))
                     showExporter = true
                 } label: {
@@ -470,9 +515,24 @@ struct PlaylistDetailView: View {
 
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: playlist?.smartRule == nil ? "music.note" : "wand.and.stars")
-                .font(.system(size: 44, weight: .thin))
-                .foregroundColor(.white.opacity(0.5))
+            if let playlist {
+                Button {
+                    showArtworkEditor = true
+                } label: {
+                    PlaylistArtworkView(playlist: playlist, size: 112, cornerRadius: 24)
+                        .overlay(alignment: .bottomTrailing) {
+                            Image(systemName: "pencil.circle.fill")
+                                .font(.title2)
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(.white, .purple)
+                                .background(.black, in: Circle())
+                                .offset(x: 6, y: 6)
+                        }
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Customize Playlist Artwork")
+                .padding(.bottom, 8)
+            }
             Text(playlist?.smartRule == nil ? "No tracks yet" : "No matching tracks")
                 .font(.headline)
                 .foregroundColor(.white)

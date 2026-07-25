@@ -43,22 +43,50 @@ struct Playlist: Identifiable, Codable, Equatable {
     private(set) var trackIDs: [UUID]
     let dateCreated: Date
     var smartRule: SmartPlaylistRule?
+    var artworkFileName: String?
+    var artworkIconName: String?
+    var artworkHue1: Double?
+    var artworkHue2: Double?
 
     init(
         id: UUID = UUID(),
         name: String,
         trackIDs: [UUID] = [],
         dateCreated: Date = Date(),
-        smartRule: SmartPlaylistRule? = nil
+        smartRule: SmartPlaylistRule? = nil,
+        artworkFileName: String? = nil,
+        artworkIconName: String? = nil,
+        artworkHue1: Double? = nil,
+        artworkHue2: Double? = nil
     ) {
         self.id = id
         self.name = name
         self.trackIDs = trackIDs
         self.dateCreated = dateCreated
         self.smartRule = smartRule
+        self.artworkFileName = artworkFileName
+        self.artworkIconName = artworkIconName
+        self.artworkHue1 = artworkHue1
+        self.artworkHue2 = artworkHue2
     }
 
     var count: Int { trackIDs.count }
+
+    static let artworkDirectory = Track.documentsDirectory
+        .appendingPathComponent("PlaylistArtwork", isDirectory: true)
+
+    var artworkURL: URL? {
+        guard let artworkFileName else { return nil }
+        return Self.artworkDirectory.appendingPathComponent(artworkFileName)
+    }
+
+    var displayArtworkIconName: String {
+        artworkIconName ?? (smartRule == nil ? "music.note.list" : "wand.and.stars")
+    }
+
+    var displayArtworkHues: (Double, Double) {
+        (artworkHue1 ?? ArtworkTheme.violet.hue1, artworkHue2 ?? ArtworkTheme.violet.hue2)
+    }
 
     func contains(_ trackID: UUID) -> Bool { trackIDs.contains(trackID) }
 

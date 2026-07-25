@@ -10,6 +10,29 @@ final class TrackTests: XCTestCase {
         XCTAssertEqual(a.gradientHue2, b.gradientHue2, accuracy: 1e-12)
     }
 
+    func testDefaultArtworkUsesConsistentBrandGradient() {
+        let first = Track(title: "One", fileName: "one.m4a")
+        let second = Track(title: "Two", fileName: "completely-different.mp3")
+
+        XCTAssertEqual(first.displayGradientHues.0, ArtworkTheme.violet.hue1)
+        XCTAssertEqual(first.displayGradientHues.1, ArtworkTheme.violet.hue2)
+        XCTAssertEqual(first.displayGradientHues.0, second.displayGradientHues.0)
+        XCTAssertEqual(first.displayGradientHues.1, second.displayGradientHues.1)
+    }
+
+    func testSelectedGeneratedThemeUsesStoredHues() {
+        var track = Track(
+            title: "One",
+            fileName: "one.m4a",
+            gradientHue1: 0.1,
+            gradientHue2: 0.2
+        )
+        track.usesGeneratedArtwork = true
+
+        XCTAssertEqual(track.displayGradientHues.0, 0.1)
+        XCTAssertEqual(track.displayGradientHues.1, 0.2)
+    }
+
     func testStableHashIsConstant() {
         XCTAssertEqual(Track.stableHash("hello.m4a"), Track.stableHash("hello.m4a"))
         XCTAssertNotEqual(Track.stableHash("a.m4a"), Track.stableHash("b.m4a"))
@@ -61,6 +84,35 @@ final class TrackTests: XCTestCase {
         XCTAssertEqual(t.artworkURL, Track.artworkDirectory.appendingPathComponent("tune.img"))
     }
 
+    func testCustomArtworkTakesPrecedenceWithoutDiscardingEmbeddedArtwork() {
+        let track = Track(
+            title: "T",
+            fileName: "tune.m4a",
+            artworkFileName: "embedded.img",
+            customArtworkFileName: "custom.jpg"
+        )
+
+        XCTAssertEqual(track.preferredArtworkFileName, "custom.jpg")
+        XCTAssertEqual(track.artworkURL, Track.artworkDirectory.appendingPathComponent("custom.jpg"))
+        XCTAssertEqual(
+            track.embeddedArtworkURL,
+            Track.artworkDirectory.appendingPathComponent("embedded.img")
+        )
+    }
+
+    func testGeneratedArtworkCanTemporarilyHideEmbeddedArtwork() {
+        var track = Track(
+            title: "T",
+            fileName: "tune.m4a",
+            artworkFileName: "embedded.img"
+        )
+
+        track.usesGeneratedArtwork = true
+        XCTAssertNil(track.preferredArtworkFileName)
+        XCTAssertNil(track.artworkURL)
+        XCTAssertNotNil(track.embeddedArtworkURL)
+    }
+
     func testCodableRoundTripPreservesArtworkFileName() throws {
         let original = Track(
             title: "Song",
@@ -85,6 +137,8 @@ final class TrackTests: XCTestCase {
         """.data(using: .utf8)!
         let decoded = try JSONDecoder().decode(Track.self, from: legacy)
         XCTAssertNil(decoded.artworkFileName)
+        XCTAssertNil(decoded.customArtworkFileName)
+        XCTAssertNil(decoded.usesGeneratedArtwork)
         XCTAssertNil(decoded.album)
         XCTAssertNil(decoded.genre)
         XCTAssertNil(decoded.metadataScanVersion)

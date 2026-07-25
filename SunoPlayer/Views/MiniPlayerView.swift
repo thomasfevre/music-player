@@ -3,13 +3,17 @@ import SwiftUI
 // MARK: - MiniPlayerView
 /// Compact player bar floating at the bottom of the library. Tapping opens NowPlayingView.
 struct MiniPlayerView: View {
+    @EnvironmentObject var library: MusicLibraryManager
     @EnvironmentObject var player: AudioPlayerManager
     @Binding var showNowPlaying: Bool
 
     @State private var isAnimatingArt = false
     @StateObject private var artwork = ArtworkLoader()
 
-    private var track: Track? { player.currentTrack }
+    private var track: Track? {
+        guard let current = player.currentTrack else { return nil }
+        return library.tracks.first { $0.id == current.id } ?? current
+    }
 
     var body: some View {
         HStack(spacing: 14) {
@@ -55,6 +59,7 @@ struct MiniPlayerView: View {
             }
             .onAppear { isAnimatingArt = true; artwork.load(for: track) }
             .onChange(of: track?.id) { artwork.load(for: track) }
+            .onChange(of: track?.preferredArtworkFileName) { artwork.load(for: track) }
 
             // Title & Artist
             VStack(alignment: .leading, spacing: 2) {

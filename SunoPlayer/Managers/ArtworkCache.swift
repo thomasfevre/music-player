@@ -20,7 +20,17 @@ final class ArtworkLoader: ObservableObject {
     /// Loads the cover art for a track. Cached images resolve synchronously; cold reads happen
     /// on a background task and update `image` when ready. No-op if the same track is already loaded.
     func load(for track: Track?) {
-        guard let track, let fileName = track.artworkFileName, let url = track.artworkURL else {
+        guard let track else {
+            image = nil
+            loadedKey = nil
+            return
+        }
+        load(fileName: track.preferredArtworkFileName, url: track.artworkURL)
+    }
+
+    /// Loads any artwork file using the same background decoder and shared cache.
+    func load(fileName: String?, url: URL?) {
+        guard let fileName, let url else {
             image = nil
             loadedKey = nil
             return
@@ -52,8 +62,9 @@ final class ArtworkLoader: ObservableObject {
 
     /// Drops a track's image from the shared cache (call when its file is deleted or replaced).
     static func remove(_ track: Track) {
-        guard let fileName = track.artworkFileName else { return }
-        cache.removeObject(forKey: fileName as NSString)
+        [track.artworkFileName, track.customArtworkFileName]
+            .compactMap { $0 }
+            .forEach { cache.removeObject(forKey: $0 as NSString) }
     }
 
     /// Drops a cache entry by its raw artwork file name (used before overwriting on re-import).

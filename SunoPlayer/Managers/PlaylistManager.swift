@@ -49,13 +49,106 @@ final class PlaylistManager: ObservableObject {
     }
 
     func delete(_ playlist: Playlist) {
-        playlists.removeAll { $0.id == playlist.id }
-        save()
+        guard let index = indexOf(playlist) else { return }
+        let removed = playlists.remove(at: index)
+        guard save() else {
+            playlists.insert(removed, at: index)
+            return
+        }
+        removeArtworkFile(for: removed)
     }
 
     func deletePlaylists(at offsets: IndexSet) {
-        playlists.remove(atOffsets: offsets)
-        save()
+        let validOffsets = IndexSet(offsets.filter { playlists.indices.contains($0) })
+        guard !validOffsets.isEmpty else { return }
+        let deleting = validOffsets
+            .map { playlists[$0] }
+        let previous = playlists
+        playlists.remove(atOffsets: validOffsets)
+        guard save() else {
+            playlists = previous
+            return
+        }
+        deleting.forEach(removeArtworkFile)
+    }
+
+    // MARK: - Artwork
+
+    @discardableResult
+    func setCustomArtwork(_ data: Data, for playlist: Playlist) async -> Bool {
+        guard indexOf(playlist) != nil else { return false }
+        let fileName = "playlist-\(playlist.id.uuidString)-\(UUID().uuidString).jpg"
+        do {
+            try await Task.detached(priority: .userInitiated) {
+                try ArtworkStorage.saveImage(
+                    data,
+                    fileName: fileName,
+                    directory: Playlist.artworkDirectory
+                )
+            }.value
+            guard let index = indexOf(playlist) else {
+                await Task.detached {
+                    ArtworkStorage.removeIfPresent(
+                        Playlist.artworkDirectory.appendingPathComponent(fileName)
+                    )
+                }.value
+                return false
+            }
+            let previous = playlists[index]
+            playlists[index].artworkFileName = fileName
+            guard save() else {
+                playlists[index] = previous
+                await Task.detached {
+                    ArtworkStorage.removeIfPresent(
+                        Playlist.artworkDirectory.appendingPathComponent(fileName)
+                    )
+                }.value
+                return false
+            }
+            if let previousKey = previous.artworkFileName {
+                ArtworkLoader.remove(byKey: previousKey)
+            }
+            await Task.detached {
+                ArtworkStorage.removeIfPresent(previous.artworkURL)
+            }.value
+            return true
+        } catch {
+            lastError = "The playlist artwork could not be saved: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// Selects an icon and color style, replacing a custom photo if one was in use.
+    @discardableResult
+    func setArtworkStyle(iconName: String, theme: ArtworkTheme, for playlist: Playlist) -> Bool {
+        guard let index = indexOf(playlist) else { return false }
+        let previous = playlists[index]
+        playlists[index].artworkFileName = nil
+        playlists[index].artworkIconName = iconName
+        playlists[index].artworkHue1 = theme.hue1
+        playlists[index].artworkHue2 = theme.hue2
+        guard save() else {
+            playlists[index] = previous
+            return false
+        }
+        removeArtworkFile(for: previous)
+        return true
+    }
+
+    @discardableResult
+    func resetArtwork(for playlist: Playlist) -> Bool {
+        guard let index = indexOf(playlist) else { return false }
+        let previous = playlists[index]
+        playlists[index].artworkFileName = nil
+        playlists[index].artworkIconName = nil
+        playlists[index].artworkHue1 = nil
+        playlists[index].artworkHue2 = nil
+        guard save() else {
+            playlists[index] = previous
+            return false
+        }
+        removeArtworkFile(for: previous)
+        return true
     }
 
     // MARK: - Track membership
@@ -119,17 +212,31 @@ final class PlaylistManager: ObservableObject {
         lastError = nil
     }
 
+    func reportArtworkError(_ message: String) {
+        lastError = message
+    }
+
     private func indexOf(_ playlist: Playlist) -> Int? {
         playlists.firstIndex { $0.id == playlist.id }
     }
 
+    private func removeArtworkFile(for playlist: Playlist) {
+        if let key = playlist.artworkFileName {
+            ArtworkLoader.remove(byKey: key)
+        }
+        ArtworkStorage.removeIfPresent(playlist.artworkURL)
+    }
+
     // MARK: - Persistence
 
-    private func save() {
+    @discardableResult
+    private func save() -> Bool {
         do {
             try JSONEncoder().encode(playlists).write(to: saveURL, options: .atomic)
+            return true
         } catch {
             lastError = "Playlists could not be saved: \(error.localizedDescription)"
+            return false
         }
     }
 

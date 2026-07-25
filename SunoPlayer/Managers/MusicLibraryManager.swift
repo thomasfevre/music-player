@@ -101,6 +101,95 @@ final class MusicLibraryManager: ObservableObject {
         saveFavorites()
     }
 
+    // MARK: - Artwork
+
+    /// Stores a user-selected image without replacing cover art embedded in the audio file.
+    @discardableResult
+    func setCustomArtwork(_ data: Data, for track: Track) async -> Bool {
+        guard tracks.contains(where: { $0.id == track.id }) else { return false }
+        let fileName = "track-\(track.id.uuidString)-\(UUID().uuidString).jpg"
+        do {
+            try await Task.detached(priority: .userInitiated) {
+                try ArtworkStorage.saveImage(
+                    data,
+                    fileName: fileName,
+                    directory: Track.artworkDirectory
+                )
+            }.value
+            guard let index = tracks.firstIndex(where: { $0.id == track.id }) else {
+                await Task.detached {
+                    ArtworkStorage.removeIfPresent(
+                        Track.artworkDirectory.appendingPathComponent(fileName)
+                    )
+                }.value
+                return false
+            }
+            let previous = tracks[index]
+            tracks[index].customArtworkFileName = fileName
+            tracks[index].usesGeneratedArtwork = false
+            guard saveLibrary() else {
+                tracks[index] = previous
+                await Task.detached {
+                    ArtworkStorage.removeIfPresent(
+                        Track.artworkDirectory.appendingPathComponent(fileName)
+                    )
+                }.value
+                return false
+            }
+            if let previousKey = previous.customArtworkFileName {
+                ArtworkLoader.remove(byKey: previousKey)
+            }
+            await Task.detached {
+                ArtworkStorage.removeIfPresent(previous.customArtworkURL)
+            }.value
+            return true
+        } catch {
+            lastError = "The artwork for \(track.title) could not be saved: \(error.localizedDescription)"
+            return false
+        }
+    }
+
+    /// Selects a generated color style. A custom photo is removed so the chosen colors are visible.
+    @discardableResult
+    func setArtworkTheme(_ theme: ArtworkTheme, for track: Track) -> Bool {
+        guard let index = tracks.firstIndex(where: { $0.id == track.id }) else { return false }
+        let previous = tracks[index]
+        tracks[index].customArtworkFileName = nil
+        tracks[index].usesGeneratedArtwork = true
+        tracks[index].gradientHue1 = theme.hue1
+        tracks[index].gradientHue2 = theme.hue2
+        guard saveLibrary() else {
+            tracks[index] = previous
+            return false
+        }
+        removeCustomArtworkFile(for: previous)
+        return true
+    }
+
+    /// Restores the embedded cover, or the app's consistent default gradient if none exists.
+    @discardableResult
+    func resetArtwork(for track: Track) -> Bool {
+        guard let index = tracks.firstIndex(where: { $0.id == track.id }) else { return false }
+        let previous = tracks[index]
+        tracks[index].customArtworkFileName = nil
+        tracks[index].usesGeneratedArtwork = nil
+        tracks[index].gradientHue1 = ArtworkTheme.violet.hue1
+        tracks[index].gradientHue2 = ArtworkTheme.violet.hue2
+        guard saveLibrary() else {
+            tracks[index] = previous
+            return false
+        }
+        removeCustomArtworkFile(for: previous)
+        return true
+    }
+
+    private func removeCustomArtworkFile(for track: Track) {
+        if let key = track.customArtworkFileName {
+            ArtworkLoader.remove(byKey: key)
+        }
+        ArtworkStorage.removeIfPresent(track.customArtworkURL)
+    }
+
     private func loadFavorites() {
         let raw = UserDefaults.standard.stringArray(forKey: favoritesKey) ?? []
         favoriteIDs = Set(raw.compactMap(UUID.init(uuidString:)))
@@ -199,10 +288,9 @@ final class MusicLibraryManager: ObservableObject {
                 return false
             }
         }
-        // Clean up the extracted artwork file + its cache entry (best-effort).
-        if let artworkURL = track.artworkURL, fm.fileExists(atPath: artworkURL.path) {
-            try? fm.removeItem(at: artworkURL)
-        }
+        // Clean up both the embedded and user-selected artwork files (best-effort).
+        ArtworkStorage.removeIfPresent(track.embeddedArtworkURL)
+        ArtworkStorage.removeIfPresent(track.customArtworkURL)
         ArtworkLoader.remove(track)
 
         tracks.removeAll { $0.id == track.id }
@@ -213,6 +301,10 @@ final class MusicLibraryManager: ObservableObject {
 
     func clearError() {
         lastError = nil
+    }
+
+    func reportArtworkError(_ message: String) {
+        lastError = message
     }
 
     /// Libraries created by older app versions do not contain album or genre fields.
@@ -343,12 +435,15 @@ final class MusicLibraryManager: ObservableObject {
     }
 
     // MARK: - Persistence
-    private func saveLibrary() {
+    @discardableResult
+    private func saveLibrary() -> Bool {
         do {
             let data = try JSONEncoder().encode(tracks)
             try data.write(to: saveURL, options: .atomic)
+            return true
         } catch {
             lastError = "The music library could not be saved: \(error.localizedDescription)"
+            return false
         }
     }
 
