@@ -15,6 +15,7 @@ struct LibraryView: View {
     @State private var showBrowser = false
     @State private var pendingDeletion: Track?
     @State private var artworkTrack: Track?
+    @FocusState private var isSearchFocused: Bool
 
     // Bottom padding when mini player is visible
     private var listBottomPadding: CGFloat {
@@ -33,19 +34,11 @@ struct LibraryView: View {
                     trackList
                 }
             }
-            .navigationTitle("Music Player")
-            .navigationBarTitleDisplayMode(.large)
-            // Keep the header light on scroll: no nav-bar background. The search field keeps
-            // its own liquid-glass material.
-            .toolbarBackground(.hidden, for: .navigationBar)
+            .navigationTitle("Music Library")
+            .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
-                libraryActions
+                libraryHeader
             }
-            .searchable(
-                text: $library.searchText,
-                placement: .navigationBarDrawer(displayMode: .always),
-                prompt: "Search tracks…"
-            )
             .fileImporter(
                 isPresented: $showFilePicker,
                 allowedContentTypes: [.audio, .mp3, .mpeg4Audio],
@@ -166,10 +159,21 @@ struct LibraryView: View {
             .padding(.top, 8)
             .padding(.bottom, listBottomPadding + 16)
         }
+        .scrollDismissesKeyboard(.interactively)
     }
 
     // MARK: Empty State
     private var emptyState: some View {
+        Group {
+            if library.tracks.isEmpty {
+                emptyLibraryState
+            } else {
+                noMatchesState
+            }
+        }
+    }
+
+    private var emptyLibraryState: some View {
         VStack(spacing: 28) {
             ZStack {
                 Circle()
@@ -237,63 +241,163 @@ struct LibraryView: View {
         .padding()
     }
 
-    // MARK: Library actions
+    private var noMatchesState: some View {
+        ContentUnavailableView {
+            Label(
+                library.showFavoritesOnly ? "No Favorite Matches" : "No Matches",
+                systemImage: "magnifyingglass"
+            )
+        } description: {
+            Text("Try another search or clear the active filters.")
+        } actions: {
+            Button("Clear Filters") {
+                library.searchText = ""
+                library.showFavoritesOnly = false
+                isSearchFocused = false
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.purple)
+        }
+        .foregroundStyle(.white)
+    }
+
+    // MARK: Library header
+    private var libraryHeader: some View {
+        VStack(spacing: 8) {
+            libraryActions
+            HStack(spacing: 8) {
+                searchField
+                sortMenu
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
+        .background(Color.black)
+        .overlay(alignment: .bottom) {
+            Divider()
+                .overlay(.white.opacity(0.08))
+        }
+    }
+
     private var libraryActions: some View {
         HStack(spacing: 0) {
-            Button {
+            libraryAction(
+                title: "Browse",
+                systemImage: "square.grid.2x2"
+            ) {
                 showBrowser = true
-            } label: {
-                LibraryActionLabel(title: "Browse", systemImage: "square.grid.2x2")
             }
 
-            Button {
+            libraryAction(
+                title: "Playlists",
+                systemImage: "music.note.list"
+            ) {
                 showPlaylists = true
-            } label: {
-                LibraryActionLabel(title: "Playlists", systemImage: "music.note.list")
             }
 
-            Button {
+            libraryAction(
+                title: "Favorites",
+                systemImage: library.showFavoritesOnly ? "heart.fill" : "heart",
+                tint: library.showFavoritesOnly ? .pink : .white.opacity(0.82)
+            ) {
                 library.showFavoritesOnly.toggle()
                 UISelectionFeedbackGenerator().selectionChanged()
-            } label: {
-                LibraryActionLabel(
-                    title: "Favorites",
-                    systemImage: library.showFavoritesOnly ? "heart.fill" : "heart",
-                    tint: library.showFavoritesOnly ? .pink : .white.opacity(0.82)
-                )
             }
 
-            Menu {
-                ForEach(SortOrder.allCases) { order in
-                    Button {
-                        library.sortOrder = order
-                    } label: {
-                        Label(
-                            order.rawValue,
-                            systemImage: library.sortOrder == order ? "checkmark" : "circle"
-                        )
-                    }
-                }
-            } label: {
-                LibraryActionLabel(title: "Sort", systemImage: "arrow.up.arrow.down")
-            }
-
-            Button {
+            libraryAction(
+                title: "Import",
+                systemImage: "plus.circle.fill"
+            ) {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 showFilePicker = true
-            } label: {
-                LibraryActionLabel(title: "Import", systemImage: "plus.circle.fill")
             }
         }
         .buttonStyle(.plain)
-        .padding(.vertical, 7)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18))
-        .overlay {
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(.white.opacity(0.09), lineWidth: 1)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.white.opacity(0.7))
+
+            TextField("Search tracks…", text: $library.searchText)
+                .focused($isSearchFocused)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.search)
+                .foregroundStyle(.white)
+                .onSubmit {
+                    isSearchFocused = false
+                }
+
+            if !library.searchText.isEmpty {
+                Button {
+                    library.searchText = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.white.opacity(0.55))
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Clear search")
+            }
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 8)
+        .padding(.leading, 16)
+        .padding(.trailing, library.searchText.isEmpty ? 16 : 0)
+        .frame(maxWidth: .infinity, minHeight: 48)
+        .background(
+            Color.white.opacity(isSearchFocused ? 0.14 : 0.10),
+            in: RoundedRectangle(cornerRadius: 16)
+        )
+        .overlay {
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(
+                    isSearchFocused ? Color.purple.opacity(0.8) : .white.opacity(0.08),
+                    lineWidth: 1
+                )
+        }
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            ForEach(SortOrder.allCases) { order in
+                Button {
+                    library.sortOrder = order
+                } label: {
+                    Label(
+                        order.rawValue,
+                        systemImage: library.sortOrder == order ? "checkmark" : "circle"
+                    )
+                }
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 17, weight: .semibold))
+                Text("Sort")
+                    .font(.caption2.weight(.medium))
+            }
+            .foregroundStyle(.white.opacity(0.82))
+            .frame(width: 64)
+            .frame(minHeight: 48)
+            .background(
+                Color.white.opacity(0.10),
+                in: RoundedRectangle(cornerRadius: 16)
+            )
+        }
+        .accessibilityLabel("Sort tracks, \(library.sortOrder.rawValue)")
+    }
+
+    private func libraryAction(
+        title: String,
+        systemImage: String,
+        tint: Color = .white.opacity(0.82),
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            LibraryActionLabel(title: title, systemImage: systemImage, tint: tint)
+        }
     }
 
     private func delete(_ track: Track) {
@@ -311,7 +415,7 @@ private struct LibraryActionLabel: View {
     var tint: Color = .white.opacity(0.82)
 
     var body: some View {
-        VStack(spacing: 5) {
+        VStack(spacing: 4) {
             Image(systemName: systemImage)
                 .font(.system(size: 18, weight: .semibold))
                 .frame(height: 22)
