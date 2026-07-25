@@ -160,11 +160,7 @@ struct NowPlayingView: View {
                 Image(uiImage: image)
                     .resizable()
                     .scaledToFill()
-                    .clipShape(RoundedRectangle(cornerRadius: 28))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 28)
-                            .stroke(.white.opacity(0.15), lineWidth: 1)
-                    )
+                    .frame(width: artSize, height: artSize)
             } else if let track {
                 // Main gradient artwork
                 RoundedRectangle(cornerRadius: 28)
@@ -186,10 +182,6 @@ struct NowPlayingView: View {
                                 )
                             )
                     )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 28)
-                            .stroke(.white.opacity(0.15), lineWidth: 1)
-                    )
 
                 // Music icon in center
                 VStack(spacing: 12) {
@@ -207,6 +199,12 @@ struct NowPlayingView: View {
             }
         }
         .frame(width: artSize, height: artSize)
+        .clipped()
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(.white.opacity(0.15), lineWidth: 1)
+        )
         .shadow(
             color: (track?.gradientColors.first ?? .purple).opacity(0.5),
             radius: player.isPlaying ? 50 : 25,
