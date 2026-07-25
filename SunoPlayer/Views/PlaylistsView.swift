@@ -353,7 +353,7 @@ struct PlaylistDetailView: View {
                     if isSelecting {
                         toggleSelection(track.id)
                     } else {
-                        player.play(track, in: visibleTracks)
+                        player.play(track, in: visibleTracks, source: .playlist)
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     }
                 }
@@ -431,7 +431,7 @@ struct PlaylistDetailView: View {
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 guard let first = visibleTracks.first else { return }
-                player.play(first, in: visibleTracks)
+                player.play(first, in: visibleTracks, source: .playlist)
             } label: {
                 Image(systemName: "play.fill")
             }

@@ -172,4 +172,18 @@ final class PlaybackQueueTests: XCTestCase {
         XCTAssertEqual(q.currentTrack, b)
         XCTAssertTrue(q.upcomingTracks.isEmpty)
     }
+
+    func testReplaceUpcomingKeepsHistoryAndCurrent() {
+        let a = TestSupport.track(title: "A")
+        let b = TestSupport.track(title: "B")
+        let c = TestSupport.track(title: "C")
+        let replacement = TestSupport.track(title: "Replacement")
+        var queue = PlaybackQueue()
+        queue.setQueue([a, b, c], startAt: b)
+
+        queue.replaceUpcoming(with: [replacement])
+
+        XCTAssertEqual(queue.activeOrder, [a, b, replacement])
+        XCTAssertEqual(queue.currentTrack, b)
+    }
 }

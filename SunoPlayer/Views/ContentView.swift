@@ -26,7 +26,20 @@ struct ContentView: View {
             #if DEBUG
             if ProcessInfo.processInfo.arguments.contains("UITEST_AUTOPLAY"),
                let first = library.displayedTracks.first {
-                player.play(first, in: library.displayedTracks)
+                player.play(first, in: library.displayedTracks, source: .library)
+                if ProcessInfo.processInfo.arguments.contains("UITEST_AUTODJ") {
+                    _ = player.startAutoDJ(
+                        library: library.tracks,
+                        favoriteIDs: library.favoriteIDs,
+                        playlistGroups: playlists.playlists.map {
+                            PlaylistResolver.tracks(
+                                for: $0,
+                                in: library.tracks,
+                                favoriteIDs: library.favoriteIDs
+                            ).map(\.id)
+                        }
+                    )
+                }
                 showNowPlaying = true
                 return
             }

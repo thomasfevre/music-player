@@ -87,7 +87,7 @@ struct LibraryBrowserView: View {
         )
         .listRowBackground(Color.clear)
         .contentShape(Rectangle())
-        .onTapGesture { player.play(track, in: queue) }
+        .onTapGesture { player.play(track, in: queue, source: .browser) }
     }
 }
 
@@ -119,7 +119,7 @@ private struct LibraryCollectionView: View {
             )
             .listRowBackground(Color.clear)
             .contentShape(Rectangle())
-            .onTapGesture { player.play(track, in: tracks) }
+            .onTapGesture { player.play(track, in: tracks, source: .browser) }
         }
         .scrollContentBackground(.hidden)
         .background(Color.black)

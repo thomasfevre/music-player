@@ -15,6 +15,8 @@ sessions d'écoute avant d'investir dans l'analyse audio.
   - **Plus comme ça**
   - **Pas pour cette session**
 - Un ajout manuel dans la file reste prioritaire.
+- Un morceau n'est pas répété dans la même session ; l'Auto-DJ s'arrête proprement
+  lorsque tous les candidats disponibles ont été joués.
 - L'utilisateur peut arrêter l'Auto-DJ à tout moment.
 - L'apprentissage et les données restent sur l'iPhone.
 - Une commande permet de réinitialiser l'apprentissage.

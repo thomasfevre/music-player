@@ -7,6 +7,7 @@ import AVFoundation
 final class AudioPlayerManagerTests: XCTestCase {
 
     private var createdFileNames: [String] = []
+    private var createdHistoryURLs: [URL] = []
 
     override func setUp() {
         super.setUp()
@@ -26,7 +27,11 @@ final class AudioPlayerManagerTests: XCTestCase {
         for name in createdFileNames {
             try? FileManager.default.removeItem(at: Track.documentsDirectory.appendingPathComponent(name))
         }
+        for url in createdHistoryURLs {
+            try? FileManager.default.removeItem(at: url)
+        }
         createdFileNames = []
+        createdHistoryURLs = []
         super.tearDown()
     }
 
@@ -36,6 +41,14 @@ final class AudioPlayerManagerTests: XCTestCase {
         let url = Track.documentsDirectory.appendingPathComponent(fileName)
         try TestSupport.silentWAV().write(to: url)
         return Track(title: title, fileName: fileName, duration: 0.4)
+    }
+
+    private func makeManager() -> (AudioPlayerManager, ListeningHistoryStore) {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("listening-\(UUID().uuidString).json")
+        createdHistoryURLs.append(url)
+        let history = ListeningHistoryStore(fileURL: url)
+        return (AudioPlayerManager(listeningHistory: history), history)
     }
 
     func testPlaySetsCurrentTrackSynchronously() throws {
@@ -218,5 +231,331 @@ final class AudioPlayerManagerTests: XCTestCase {
         XCTAssertEqual(manager.currentTrack, b)
         manager.next()
         XCTAssertEqual(manager.currentTrack, c) // base order navigation intact
+    }
+
+    func testManualNextAndNaturalCompletionAreRecordedDifferently() async throws {
+        let (manager, history) = makeManager()
+        let first = try makePlayableTrack("history-first", title: "First")
+        let second = try makePlayableTrack("history-second", title: "Second")
+
+        manager.play(first, in: [first, second], source: .library)
+        try await Task.sleep(nanoseconds: 120_000_000)
+        manager.next()
+
+        XCTAssertEqual(
+            history.history.recentEvents.last(where: { $0.kind == .playback })?.endReason,
+            .manualSkip
+        )
+
+        let third = try makePlayableTrack("history-third", title: "Third")
+        manager.play(second, in: [second, third], source: .library)
+        try await waitUntil(timeout: 2) { manager.currentTrack == third }
+
+        XCTAssertEqual(
+            history.history.recentEvents.last(where: { $0.kind == .playback })?.endReason,
+            .naturalCompletion
+        )
+    }
+
+    func testStartingAutoDJPreservesManualNextAndReplacesBaseUpcomingQueue() throws {
+        let (manager, _) = makeManager()
+        let current = try makePlayableTrack("auto-current", title: "Current")
+        let manual = try makePlayableTrack("auto-manual", title: "Manual")
+        let suggestedA = try makePlayableTrack("auto-a", title: "Suggested A")
+        let suggestedB = try makePlayableTrack("auto-b", title: "Suggested B")
+
+        manager.play(current, in: [current, suggestedA, suggestedB], source: .library)
+        manager.enqueueNext(manual)
+
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [current, manual, suggestedA, suggestedB],
+                favoriteIDs: [],
+                playlistGroups: []
+            )
+        )
+
+        XCTAssertTrue(manager.isAutoDJEnabled)
+        XCTAssertEqual(manager.activeQueue.dropFirst().first, manual)
+        XCTAssertEqual(Set(manager.activeQueue.map(\.id)), Set([current, manual, suggestedA, suggestedB].map(\.id)))
+        XCTAssertEqual(manager.autoDJUpcomingRecommendations.count, 2)
+    }
+
+    func testNegativeAutoDJFeedbackIsStoredAndAdvances() throws {
+        let (manager, history) = makeManager()
+        let current = try makePlayableTrack("feedback-current", title: "Current")
+        let next = try makePlayableTrack("feedback-next", title: "Next")
+
+        manager.play(current, in: [current, next], source: .library)
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [current, next],
+                favoriteIDs: [],
+                playlistGroups: []
+            )
+        )
+
+        manager.submitAutoDJFeedback(positive: false)
+
+        XCTAssertEqual(manager.currentTrack, next)
+        XCTAssertEqual(history.summary(for: current.id).negativeFeedbackCount, 1)
+        XCTAssertEqual(
+            history.history.recentEvents.last(where: { $0.kind == .negativeFeedback })?.trackID,
+            current.id
+        )
+    }
+
+    func testAutoDJStopsAfterEveryLibraryTrackHasPlayedWithoutRepeating() throws {
+        let (manager, _) = makeManager()
+        let first = try makePlayableTrack("cycle-first", title: "First")
+        let second = try makePlayableTrack("cycle-second", title: "Second")
+
+        manager.play(first, in: [first, second], source: .library)
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [first, second],
+                favoriteIDs: [],
+                playlistGroups: []
+            )
+        )
+
+        manager.next()
+
+        XCTAssertEqual(manager.currentTrack, second)
+        XCTAssertTrue(manager.autoDJUpcomingRecommendations.isEmpty)
+
+        manager.next()
+
+        XCTAssertFalse(manager.isAutoDJEnabled)
+        XCTAssertEqual(manager.currentTrack, second)
+        XCTAssertFalse(manager.isPlaying)
+    }
+
+    func testStartingAutoDJAtEndOfBaseQueueStillConsidersEarlierUnplayedTracks() throws {
+        let (manager, _) = makeManager()
+        let first = try makePlayableTrack("prefix-first", title: "First")
+        let second = try makePlayableTrack("prefix-second", title: "Second")
+        let current = try makePlayableTrack("prefix-current", title: "Current")
+
+        manager.play(current, in: [first, second, current], source: .library)
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [first, second, current],
+                favoriteIDs: [],
+                playlistGroups: []
+            )
+        )
+
+        XCTAssertEqual(
+            Set(manager.autoDJUpcomingRecommendations.map(\.track.id)),
+            Set([first.id, second.id])
+        )
+    }
+
+    func testClearingQueueStopsAutoDJInsteadOfSilentlyRefillingIt() throws {
+        let (manager, _) = makeManager()
+        let first = try makePlayableTrack("clear-auto-first", title: "First")
+        let second = try makePlayableTrack("clear-auto-second", title: "Second")
+
+        manager.play(first, in: [first, second], source: .library)
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [first, second],
+                favoriteIDs: [],
+                playlistGroups: []
+            )
+        )
+
+        manager.clearUpcoming()
+
+        XCTAssertFalse(manager.isAutoDJEnabled)
+        XCTAssertEqual(manager.activeQueue, [first])
+    }
+
+    func testStoppingAutoDJRemovesSuggestionsButKeepsManualQueue() throws {
+        let (manager, _) = makeManager()
+        let current = try makePlayableTrack("stop-current", title: "Current")
+        let manual = try makePlayableTrack("stop-manual", title: "Manual")
+        let suggested = try makePlayableTrack("stop-suggested", title: "Suggested")
+
+        manager.play(current, in: [current, suggested], source: .library)
+        manager.enqueueNext(manual)
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [current, manual, suggested],
+                favoriteIDs: [],
+                playlistGroups: []
+            )
+        )
+
+        manager.stopAutoDJ()
+
+        XCTAssertFalse(manager.isAutoDJEnabled)
+        XCTAssertEqual(manager.activeQueue, [current, manual])
+    }
+
+    func testPlayLaterDuringAutoDJSitsAfterManualTracksAndBeforeSuggestions() throws {
+        let (manager, _) = makeManager()
+        let current = try makePlayableTrack("later-current", title: "Current")
+        let manualNext = try makePlayableTrack("later-next", title: "Manual Next")
+        let manualLater = try makePlayableTrack("later-manual", title: "Manual Later")
+        let suggestedA = try makePlayableTrack("later-a", title: "Suggested A")
+        let suggestedB = try makePlayableTrack("later-b", title: "Suggested B")
+
+        manager.play(current, in: [current, suggestedA, suggestedB], source: .library)
+        manager.enqueueNext(manualNext)
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [current, manualNext, manualLater, suggestedA, suggestedB],
+                favoriteIDs: [],
+                playlistGroups: []
+            )
+        )
+
+        manager.enqueueLater(manualLater)
+
+        XCTAssertEqual(
+            Array(manager.activeQueue.dropFirst().prefix(2)),
+            [manualNext, manualLater]
+        )
+        XCTAssertEqual(
+            Set(manager.autoDJUpcomingRecommendations.map(\.track.id)),
+            Set([suggestedA.id, suggestedB.id])
+        )
+    }
+
+    func testPlayLaterForPreviouslyPlayedTrackMovesInsteadOfDuplicatingIt() throws {
+        let (manager, _) = makeManager()
+        let first = try makePlayableTrack("repeat-first", title: "First")
+        let second = try makePlayableTrack("repeat-second", title: "Second")
+        let third = try makePlayableTrack("repeat-third", title: "Third")
+
+        manager.play(first, in: [first, second, third], source: .library)
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [first, second, third],
+                favoriteIDs: [second.id],
+                playlistGroups: []
+            )
+        )
+        manager.next()
+
+        manager.enqueueLater(first)
+
+        XCTAssertEqual(manager.currentTrack, second)
+        XCTAssertEqual(manager.activeQueue.filter { $0.id == first.id }.count, 1)
+        XCTAssertEqual(manager.activeQueue.dropFirst().first, first)
+        manager.next()
+        XCTAssertEqual(manager.currentTrack, first)
+    }
+
+    func testQueueingCurrentTrackDuringAutoDJIsANoOp() throws {
+        let (manager, history) = makeManager()
+        let current = try makePlayableTrack("noop-current", title: "Current")
+        let suggested = try makePlayableTrack("noop-suggested", title: "Suggested")
+
+        manager.play(current, in: [current, suggested], source: .library)
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [current, suggested],
+                favoriteIDs: [],
+                playlistGroups: []
+            )
+        )
+        let queueBefore = manager.activeQueue
+
+        manager.enqueueLater(current)
+        manager.enqueueNext(current)
+
+        XCTAssertEqual(manager.activeQueue, queueBefore)
+        XCTAssertFalse(history.history.recentEvents.contains {
+            $0.trackID == current.id && ($0.kind == .queuedLater || $0.kind == .queuedNext)
+        })
+    }
+
+    func testRemovingSuggestionExcludesItForTheRestOfTheSession() throws {
+        let (manager, _) = makeManager()
+        let current = try makePlayableTrack("exclude-current", title: "Current")
+        let suggested = try makePlayableTrack("exclude-suggested", title: "Suggested")
+
+        manager.play(current, in: [current, suggested], source: .library)
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [current, suggested],
+                favoriteIDs: [],
+                playlistGroups: []
+            )
+        )
+
+        manager.removeUpcoming(at: IndexSet(integer: 0))
+
+        XCTAssertTrue(manager.autoDJUpcomingRecommendations.isEmpty)
+        XCTAssertEqual(manager.activeQueue, [current])
+    }
+
+    func testManuallyQueueingSuggestionChangesItsPlaybackSourceToQueue() throws {
+        let (manager, history) = makeManager()
+        let current = try makePlayableTrack("source-current", title: "Current")
+        let suggested = try makePlayableTrack("source-suggested", title: "Suggested")
+
+        manager.play(current, in: [current, suggested], source: .library)
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [current, suggested],
+                favoriteIDs: [],
+                playlistGroups: []
+            )
+        )
+        manager.enqueueNext(suggested)
+        manager.next()
+        manager.next()
+
+        let suggestedPlayback = history.history.recentEvents.last {
+            $0.kind == .playback && $0.trackID == suggested.id
+        }
+        XCTAssertEqual(suggestedPlayback?.source, .queue)
+    }
+
+    func testPositiveFeedbackRebuildsRecommendationsFromSessionPreference() throws {
+        let (manager, _) = makeManager()
+        let current = try makePlayableTrack("prefer-current", title: "Current")
+        var preferredCurrent = current
+        preferredCurrent.artist = "NEON"
+        let favorite = try makePlayableTrack("prefer-favorite", title: "Favorite")
+        var similar = try makePlayableTrack("prefer-similar", title: "Similar")
+        similar.artist = "NEON"
+
+        manager.play(preferredCurrent, in: [preferredCurrent, favorite, similar], source: .library)
+        XCTAssertTrue(
+            manager.startAutoDJ(
+                library: [preferredCurrent, favorite, similar],
+                favoriteIDs: [favorite.id],
+                playlistGroups: []
+            )
+        )
+        XCTAssertEqual(manager.autoDJUpcomingRecommendations.first?.track, favorite)
+
+        manager.submitAutoDJFeedback(positive: true)
+
+        XCTAssertEqual(manager.autoDJUpcomingRecommendations.first?.track, similar)
+        XCTAssertTrue(
+            manager.autoDJUpcomingRecommendations.first?.reasons.contains(.positiveFeedback) == true
+        )
+    }
+
+    func testDeletingTrackAndResettingLearningCleanHistoryOnly() throws {
+        let (manager, history) = makeManager()
+        let current = try makePlayableTrack("cleanup-current", title: "Current")
+        history.record(.feedback(trackID: current.id, previousTrackID: nil, positive: true, at: Date()))
+
+        manager.handleTrackDeleted(current)
+        XCTAssertEqual(history.summary(for: current.id), TrackListeningSummary())
+
+        let retained = UUID()
+        history.record(.feedback(trackID: retained, previousTrackID: nil, positive: true, at: Date()))
+        manager.resetListeningHistory()
+
+        XCTAssertEqual(history.summary(for: retained), TrackListeningSummary())
+        XCTAssertTrue(history.history.recentEvents.isEmpty)
     }
 }

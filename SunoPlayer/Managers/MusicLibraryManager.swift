@@ -92,13 +92,15 @@ final class MusicLibraryManager: ObservableObject {
         favoriteIDs.contains(track.id)
     }
 
-    func toggleFavorite(_ track: Track) {
+    @discardableResult
+    func toggleFavorite(_ track: Track) -> Bool {
         if favoriteIDs.contains(track.id) {
             favoriteIDs.remove(track.id)
         } else {
             favoriteIDs.insert(track.id)
         }
         saveFavorites()
+        return favoriteIDs.contains(track.id)
     }
 
     // MARK: - Artwork

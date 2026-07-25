@@ -17,6 +17,7 @@ struct NowPlayingView: View {
     @StateObject private var artwork = ArtworkLoader()
     @State private var showQueue = false
     @State private var showArtworkEditor = false
+    @State private var showResetLearningConfirmation = false
 
     private var track: Track? {
         guard let current = player.currentTrack else { return nil }
@@ -67,6 +68,9 @@ struct NowPlayingView: View {
                         playbackControls
                             .padding(.horizontal, 24)
 
+                        autoDJControls
+                            .padding(.horizontal, 24)
+
                         // Volume
                         volumeBar
                             .padding(.horizontal, 32)
@@ -101,6 +105,14 @@ struct NowPlayingView: View {
                 TrackArtworkEditorView(trackID: track.id)
                     .environmentObject(library)
             }
+        }
+        .alert("Reset Auto-DJ Learning?", isPresented: $showResetLearningConfirmation) {
+            Button("Cancel", role: .cancel) {}
+            Button("Reset", role: .destructive) {
+                player.resetListeningHistory()
+            }
+        } message: {
+            Text("Your local listening history and feedback will be erased. Your music, playlists, and favorites will stay unchanged.")
         }
     }
 
@@ -259,7 +271,8 @@ struct NowPlayingView: View {
             Button {
                 guard let track else { return }
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                library.toggleFavorite(track)
+                let isFavorite = library.toggleFavorite(track)
+                player.recordFavoriteChange(for: track.id, isFavorite: isFavorite)
             } label: {
                 let isFavorite = track.map(library.isFavorite) ?? false
                 Image(systemName: isFavorite ? "heart.fill" : "heart")
@@ -268,6 +281,173 @@ struct NowPlayingView: View {
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
+        }
+    }
+
+    // MARK: - Auto-DJ
+    @ViewBuilder
+    private var autoDJControls: some View {
+        if player.isAutoDJEnabled {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Label("Auto-DJ", systemImage: "sparkles")
+                            .font(.headline)
+                        Text("Balanced · learns only on this iPhone")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.55))
+                    }
+                    Spacer()
+                    Menu {
+                        Button("Stop Auto-DJ", systemImage: "stop.fill") {
+                            player.stopAutoDJ()
+                        }
+                        Button(
+                            "Reset Learning",
+                            systemImage: "arrow.counterclockwise",
+                            role: .destructive
+                        ) {
+                            showResetLearningConfirmation = true
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.title3)
+                            .foregroundStyle(.white.opacity(0.75))
+                            .frame(width: 44, height: 44)
+                    }
+                }
+
+                if let reason = player.currentAutoDJReason, !reason.isEmpty {
+                    Text("Why this track: \(reason)")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.72))
+                }
+
+                HStack(spacing: 10) {
+                    autoDJFeedbackButton(
+                        title: "Not for this session",
+                        icon: "hand.thumbsdown",
+                        positive: false
+                    )
+                    autoDJFeedbackButton(
+                        title: "More like this",
+                        icon: "hand.thumbsup",
+                        positive: true
+                    )
+                }
+
+                if !player.autoDJUpcomingRecommendations.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("UP NEXT")
+                            .font(.caption2.weight(.semibold))
+                            .tracking(0.8)
+                            .foregroundStyle(.white.opacity(0.4))
+
+                        ForEach(player.autoDJUpcomingRecommendations.prefix(3), id: \.track.id) { recommendation in
+                            HStack(spacing: 12) {
+                                Image(systemName: "music.note")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(accentColor)
+                                    .frame(width: 32, height: 32)
+                                    .background(accentColor.opacity(0.14), in: RoundedRectangle(cornerRadius: 9))
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(recommendation.track.title)
+                                        .font(.subheadline.weight(.medium))
+                                        .lineLimit(1)
+                                    Text(recommendation.reasonText)
+                                        .font(.caption)
+                                        .foregroundStyle(.white.opacity(0.5))
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                            }
+                        }
+                    }
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(18)
+            .background(.white.opacity(0.075), in: RoundedRectangle(cornerRadius: 22))
+            .overlay {
+                RoundedRectangle(cornerRadius: 22)
+                    .stroke(accentColor.opacity(0.28), lineWidth: 1)
+            }
+        } else {
+            VStack(spacing: 8) {
+                Button {
+                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    _ = player.startAutoDJ(
+                        library: library.tracks,
+                        favoriteIDs: library.favoriteIDs,
+                        playlistGroups: playlistTrackGroups
+                    )
+                } label: {
+                    HStack(spacing: 13) {
+                        Image(systemName: "sparkles")
+                            .font(.title3.weight(.semibold))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Start Auto-DJ")
+                                .font(.headline)
+                            Text("Balanced picks from your downloaded music")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.58))
+                        }
+                        Spacer()
+                        Image(systemName: "play.fill")
+                            .font(.subheadline)
+                    }
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 18)
+                    .frame(minHeight: 66)
+                    .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 20))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(.white.opacity(0.1), lineWidth: 1)
+                    }
+                }
+                .buttonStyle(.plain)
+                .disabled(track == nil || library.tracks.count < 2)
+                .opacity(track == nil || library.tracks.count < 2 ? 0.45 : 1)
+
+                Button {
+                    showResetLearningConfirmation = true
+                } label: {
+                    Label("Reset Auto-DJ Learning", systemImage: "arrow.counterclockwise")
+                        .font(.caption.weight(.medium))
+                        .foregroundStyle(.white.opacity(0.55))
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private func autoDJFeedbackButton(
+        title: String,
+        icon: String,
+        positive: Bool
+    ) -> some View {
+        Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            player.submitAutoDJFeedback(positive: positive)
+        } label: {
+            Label(title, systemImage: icon)
+                .font(.caption.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(.white.opacity(0.09), in: RoundedRectangle(cornerRadius: 12))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var playlistTrackGroups: [[UUID]] {
+        playlists.playlists.map {
+            PlaylistResolver.tracks(
+                for: $0,
+                in: library.tracks,
+                favoriteIDs: library.favoriteIDs
+            ).map(\.id)
         }
     }
 

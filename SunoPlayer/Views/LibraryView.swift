@@ -97,7 +97,7 @@ struct LibraryView: View {
                         isFavorite: library.isFavorite(track)
                     )
                     .onTapGesture {
-                        player.play(track, in: library.displayedTracks)
+                        player.play(track, in: library.displayedTracks, source: .library)
                         showNowPlaying = true
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     }
@@ -113,7 +113,8 @@ struct LibraryView: View {
                             Label("Play Later", systemImage: "text.append")
                         }
                         Button {
-                            library.toggleFavorite(track)
+                            let isFavorite = library.toggleFavorite(track)
+                            player.recordFavoriteChange(for: track.id, isFavorite: isFavorite)
                         } label: {
                             let fav = library.isFavorite(track)
                             Label(fav ? "Remove from Favorites" : "Add to Favorites",
