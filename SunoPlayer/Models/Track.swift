@@ -41,6 +41,26 @@ enum TrackFileNameMetadata {
     }
 }
 
+/// Normalises multi-value audio tags for browse collections. A single tag such as
+/// "Alesso, Katy Perry" contributes one entry to Alesso and one to Katy Perry.
+enum TrackBrowseMetadata {
+    static func components(from value: String?) -> [String] {
+        guard let value else { return [] }
+
+        let separators = CharacterSet(charactersIn: ",;")
+        var seen = Set<String>()
+        return value
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter {
+                seen.insert(
+                    $0.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                ).inserted
+            }
+    }
+}
+
 // MARK: - Repeat Mode
 enum RepeatMode: String, CaseIterable {
     case off, all, one

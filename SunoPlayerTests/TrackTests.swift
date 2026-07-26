@@ -75,6 +75,36 @@ final class TrackTests: XCTestCase {
         XCTAssertEqual(metadata.title, "Instrumental demo")
     }
 
+    func testBrowseMetadataSplitsMultiValueArtistTagsAndDeduplicatesThem() {
+        XCTAssertEqual(
+            TrackBrowseMetadata.components(from: "Alesso, Katy Perry, Alesso"),
+            ["Alesso", "Katy Perry"]
+        )
+    }
+
+    func testBrowseMetadataKeepsAmpersandInArtistNames() {
+        XCTAssertEqual(
+            TrackBrowseMetadata.components(from: "Earth, Wind & Fire"),
+            ["Earth", "Wind & Fire"]
+        )
+    }
+
+    func testBrowseMetadataSplitsCommaSeparatedGenres() {
+        XCTAssertEqual(
+            TrackBrowseMetadata.components(from: "bass house, edm; future house, bass house"),
+            ["bass house", "edm", "future house"]
+        )
+    }
+
+    func testBrowseMetadataKeepsSlashInArtistNames() {
+        XCTAssertEqual(TrackBrowseMetadata.components(from: "AC/DC"), ["AC/DC"])
+    }
+
+    func testBrowseMetadataIgnoresMissingOrBlankTags() {
+        XCTAssertEqual(TrackBrowseMetadata.components(from: nil), [])
+        XCTAssertEqual(TrackBrowseMetadata.components(from: "  "), [])
+    }
+
     func testImportDateCutoffIncludesTheCutoffInstant() {
         let cutoff = Date(timeIntervalSince1970: 1_000)
         let atCutoff = Track(title: "A", fileName: "a.mp3", dateImported: cutoff)

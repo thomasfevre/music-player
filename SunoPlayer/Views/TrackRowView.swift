@@ -16,7 +16,7 @@ struct TrackRowView: View {
                 TrackArtworkView(track: track)
                     .shadow(color: track.gradientColors[0].opacity(0.5), radius: 8, y: 4)
 
-                if isPlaying {
+                if isPlaying && !track.usesListeningPoster {
                     // Animated equalizer bars
                     EqualizerBarsView()
                         .frame(width: 24, height: 20)
@@ -42,6 +42,11 @@ struct TrackRowView: View {
                 Image(systemName: "heart.fill")
                     .font(.system(size: 12))
                     .foregroundColor(.pink.opacity(0.85))
+            }
+
+            if isPlaying && track.usesListeningPoster {
+                EqualizerBarsView()
+                    .frame(width: 24, height: 20)
             }
 
             // Duration
