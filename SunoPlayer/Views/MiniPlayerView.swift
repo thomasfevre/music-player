@@ -17,20 +17,22 @@ struct MiniPlayerView: View {
     var body: some View {
         HStack(spacing: 14) {
             // Artwork
-            if let track {
-                TrackArtworkView(track: track, size: 44, cornerRadius: 8)
-                    .shadow(color: track.gradientColors.first?.opacity(0.5) ?? .clear, radius: 8, y: 2)
-                    .scaleEffect(isAnimatingArt && player.isPlaying ? 1.04 : 1.0)
-                    .animation(
-                        player.isPlaying
-                            ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
-                            : .default,
-                        value: isAnimatingArt
-                    )
-            } else {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
-                    .frame(width: 44, height: 44)
+            Group {
+                if let track {
+                    TrackArtworkView(track: track, size: 44, cornerRadius: 8)
+                        .shadow(color: track.gradientColors.first?.opacity(0.5) ?? .clear, radius: 8, y: 2)
+                        .scaleEffect(isAnimatingArt && player.isPlaying ? 1.04 : 1.0)
+                        .animation(
+                            player.isPlaying
+                                ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
+                                : .default,
+                            value: isAnimatingArt
+                        )
+                } else {
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 44, height: 44)
+                }
             }
             .onAppear { isAnimatingArt = true }
 
