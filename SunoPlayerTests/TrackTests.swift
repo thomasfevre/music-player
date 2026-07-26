@@ -136,6 +136,41 @@ final class TrackTests: XCTestCase {
         XCTAssertNotNil(track.embeddedArtworkURL)
     }
 
+    func testListeningPosterHidesPhotoAndEmbeddedArtwork() {
+        let track = Track(
+            title: "T",
+            fileName: "tune.m4a",
+            artworkFileName: "embedded.img",
+            customArtworkFileName: "custom.jpg",
+            artworkStyle: .listeningPoster
+        )
+
+        XCTAssertTrue(track.usesListeningPoster)
+        XCTAssertNil(track.preferredArtworkFileName)
+        XCTAssertNil(track.artworkURL)
+    }
+
+    func testListeningPosterUsesStoredGradientHues() {
+        let track = Track(
+            title: "T",
+            fileName: "tune.m4a",
+            artworkStyle: .listeningPoster,
+            gradientHue1: 0.1,
+            gradientHue2: 0.2
+        )
+
+        XCTAssertEqual(track.displayGradientHues.0, 0.1)
+        XCTAssertEqual(track.displayGradientHues.1, 0.2)
+    }
+
+    func testCodableRoundTripPreservesArtworkStyle() throws {
+        let original = Track(title: "Song", fileName: "x.m4a", artworkStyle: .listeningPoster)
+        let decoded = try JSONDecoder().decode(Track.self, from: JSONEncoder().encode(original))
+
+        XCTAssertEqual(decoded.artworkStyle, .listeningPoster)
+        XCTAssertTrue(decoded.usesListeningPoster)
+    }
+
     func testCodableRoundTripPreservesArtworkFileName() throws {
         let original = Track(
             title: "Song",

@@ -10,36 +10,124 @@ struct TrackArtworkView: View {
     var symbolName = "music.note"
 
     @StateObject private var artwork = ArtworkLoader()
+    @EnvironmentObject private var player: AudioPlayerManager
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .fill(
-                    LinearGradient(
-                        colors: track.gradientColors,
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+        Group {
+            if track.usesListeningPoster {
+                TrackListeningPosterArtworkView(
+                    track: track,
+                    listeningHistory: player.listeningHistory,
+                    size: size,
+                    cornerRadius: cornerRadius
                 )
-
-            if let image = artwork.image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
             } else {
-                Image(systemName: symbolName)
-                    .font(.system(size: max(16, size * 0.32), weight: .medium))
-                    .foregroundStyle(.white.opacity(0.86))
+                ZStack {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(
+                            LinearGradient(
+                                colors: track.gradientColors,
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    if let image = artwork.image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Image(systemName: symbolName)
+                            .font(.system(size: max(16, size * 0.32), weight: .medium))
+                            .foregroundStyle(.white.opacity(0.86))
+                    }
+                }
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
             }
         }
-        .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
         .onAppear { artwork.load(for: track) }
         .onChange(of: track.preferredArtworkFileName) {
             artwork.load(for: track)
         }
         .accessibilityHidden(true)
+    }
+}
+
+/// A live editorial cover that turns existing listening history into a recognisable visual.
+struct TrackListeningPosterArtworkView: View {
+    let track: Track
+    @ObservedObject var listeningHistory: ListeningHistoryStore
+    var size: CGFloat
+    var cornerRadius: CGFloat
+
+    private var isCompact: Bool { size < 90 }
+    private var summary: TrackListeningSummary { listeningHistory.summary(for: track.id) }
+    private var plays: Int { summary.playCount }
+    private var listenedMinutes: Int { Int(summary.totalListenedSeconds / 60) }
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            LinearGradient(
+                colors: track.gradientColors,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Rectangle()
+                .fill(.black.opacity(0.16))
+
+            VStack(alignment: .leading, spacing: isCompact ? 2 : 9) {
+                if !isCompact {
+                    Text(plays == 0 ? "NEW IN YOUR LIBRARY" : "YOUR ROTATION")
+                        .font(.system(size: size * 0.042, weight: .bold, design: .rounded))
+                        .tracking(size * 0.008)
+                        .foregroundStyle(.white.opacity(0.76))
+                }
+
+                Spacer(minLength: 0)
+
+                Text(plays == 0 ? "NEW" : "\(plays)")
+                    .font(.system(size: size * (isCompact ? 0.55 : 0.42), weight: .black, design: .rounded))
+                    .minimumScaleFactor(0.45)
+                    .foregroundStyle(.white)
+
+                if !isCompact {
+                    Rectangle()
+                        .fill(.white.opacity(0.6))
+                        .frame(height: 1)
+
+                    HStack(spacing: 12) {
+                        posterMetric("\(listenedMinutes) MIN", label: "LISTENED")
+                        posterMetric("\(summary.earlySkipCount + summary.lateSkipCount)", label: "SKIPS")
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Text(track.displayArtist.uppercased())
+                        .font(.system(size: size * 0.038, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                    Text(track.title.uppercased())
+                        .font(.system(size: size * 0.052, weight: .heavy, design: .rounded))
+                        .lineLimit(2)
+                }
+            }
+            .padding(size * (isCompact ? 0.13 : 0.09))
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .accessibilityLabel("Listening poster for \(track.title), \(plays) plays")
+    }
+
+    private func posterMetric(_ value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(value)
+                .font(.system(size: size * 0.05, weight: .heavy, design: .rounded))
+            Text(label)
+                .font(.system(size: size * 0.027, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.7))
+        }
     }
 }
 
@@ -102,6 +190,7 @@ struct TrackArtworkEditorView: View {
     let trackID: UUID
 
     @EnvironmentObject private var library: MusicLibraryManager
+    @EnvironmentObject private var player: AudioPlayerManager
     @Environment(\.dismiss) private var dismiss
     @State private var previewVersion = 0
     @State private var isImportingPhoto = false
@@ -138,6 +227,35 @@ struct TrackArtworkEditorView: View {
                                     previewVersion += 1
                                 }
                             }
+                            .disabled(isImportingPhoto)
+                        }
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            sectionTitle("Stats Cover")
+                            Button {
+                                if library.setListeningPosterArtwork(for: track) {
+                                    previewVersion += 1
+                                }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "chart.bar.xaxis")
+                                        .font(.title3.weight(.semibold))
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(track.usesListeningPoster ? "Listening Poster Selected" : "Use Listening Poster")
+                                            .font(.headline)
+                                        Text("Shows plays, listening time and skips")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if track.usesListeningPoster {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.tint)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
                             .disabled(isImportingPhoto)
                         }
 

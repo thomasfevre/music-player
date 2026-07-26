@@ -104,6 +104,7 @@ struct NowPlayingView: View {
             if let track {
                 TrackArtworkEditorView(trackID: track.id)
                     .environmentObject(library)
+                    .environmentObject(player)
             }
         }
         .alert("Reset Auto-DJ Learning?", isPresented: $showResetLearningConfirmation) {
@@ -155,7 +156,14 @@ struct NowPlayingView: View {
     // MARK: - Artwork Card
     private var artworkCard: some View {
         ZStack {
-            if let image = artwork.image {
+            if let track, track.usesListeningPoster {
+                TrackListeningPosterArtworkView(
+                    track: track,
+                    listeningHistory: player.listeningHistory,
+                    size: artSize,
+                    cornerRadius: 28
+                )
+            } else if let image = artwork.image {
                 // Real embedded cover art
                 Image(uiImage: image)
                     .resizable()

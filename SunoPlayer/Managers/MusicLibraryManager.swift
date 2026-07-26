@@ -129,6 +129,7 @@ final class MusicLibraryManager: ObservableObject {
             let previous = tracks[index]
             tracks[index].customArtworkFileName = fileName
             tracks[index].usesGeneratedArtwork = false
+            tracks[index].artworkStyle = .photo
             guard saveLibrary() else {
                 tracks[index] = previous
                 await Task.detached {
@@ -158,6 +159,7 @@ final class MusicLibraryManager: ObservableObject {
         let previous = tracks[index]
         tracks[index].customArtworkFileName = nil
         tracks[index].usesGeneratedArtwork = true
+        tracks[index].artworkStyle = .color
         tracks[index].gradientHue1 = theme.hue1
         tracks[index].gradientHue2 = theme.hue2
         guard saveLibrary() else {
@@ -168,6 +170,20 @@ final class MusicLibraryManager: ObservableObject {
         return true
     }
 
+    /// Uses listening history as a live, editorial-style track cover.
+    @discardableResult
+    func setListeningPosterArtwork(for track: Track) -> Bool {
+        guard let index = tracks.firstIndex(where: { $0.id == track.id }) else { return false }
+        let previous = tracks[index]
+        tracks[index].usesGeneratedArtwork = false
+        tracks[index].artworkStyle = .listeningPoster
+        guard saveLibrary() else {
+            tracks[index] = previous
+            return false
+        }
+        return true
+    }
+
     /// Restores the embedded cover, or the app's consistent default gradient if none exists.
     @discardableResult
     func resetArtwork(for track: Track) -> Bool {
@@ -175,6 +191,7 @@ final class MusicLibraryManager: ObservableObject {
         let previous = tracks[index]
         tracks[index].customArtworkFileName = nil
         tracks[index].usesGeneratedArtwork = nil
+        tracks[index].artworkStyle = nil
         tracks[index].gradientHue1 = ArtworkTheme.violet.hue1
         tracks[index].gradientHue2 = ArtworkTheme.violet.hue2
         guard saveLibrary() else {

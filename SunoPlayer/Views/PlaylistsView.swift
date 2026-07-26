@@ -294,6 +294,7 @@ struct PlaylistDetailView: View {
         .sheet(item: $artworkTrack) { track in
             TrackArtworkEditorView(trackID: track.id)
                 .environmentObject(library)
+                .environmentObject(player)
         }
         .alert("Rename Playlist", isPresented: $showRenameAlert) {
             TextField("Name", text: $renamedName)
