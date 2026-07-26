@@ -21,9 +21,17 @@ final class PlaylistManager: ObservableObject {
     // MARK: - CRUD
 
     @discardableResult
-    func createPlaylist(name: String) -> Playlist {
+    func createPlaylist(name: String, trackIDs: [UUID] = []) -> Playlist {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let playlist = Playlist(name: trimmed.isEmpty ? "New Playlist" : trimmed)
+        var uniqueIDs: [UUID] = []
+        var seen = Set<UUID>()
+        for trackID in trackIDs where seen.insert(trackID).inserted {
+            uniqueIDs.append(trackID)
+        }
+        let playlist = Playlist(
+            name: trimmed.isEmpty ? "New Playlist" : trimmed,
+            trackIDs: uniqueIDs
+        )
         playlists.append(playlist)
         save()
         return playlist

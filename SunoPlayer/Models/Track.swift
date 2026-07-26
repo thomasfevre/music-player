@@ -10,6 +10,31 @@ enum SortOrder: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+/// Metadata that can be recovered safely from the common `Artist - Title.mp3` naming pattern.
+/// This is a fallback only: embedded audio tags always take precedence when they are present.
+enum TrackFileNameMetadata {
+    static func parse(_ fileName: String) -> (title: String, artist: String?) {
+        let baseName = (fileName as NSString).deletingPathExtension
+        let cleaned = baseName
+            .replacingOccurrences(of: "_", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let separator = cleaned.range(of: " - ") else {
+            return (cleaned, nil)
+        }
+
+        let artist = String(cleaned[..<separator.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = String(cleaned[separator.upperBound...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !artist.isEmpty, !title.isEmpty else {
+            return (cleaned, nil)
+        }
+        return (title, artist)
+    }
+}
+
 // MARK: - Repeat Mode
 enum RepeatMode: String, CaseIterable {
     case off, all, one

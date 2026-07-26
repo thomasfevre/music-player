@@ -312,7 +312,7 @@ final class MusicLibraryManager: ObservableObject {
     /// Libraries created by older app versions do not contain album or genre fields.
     /// Fill those values lazily from the existing local files without blocking launch.
     private func refreshMissingMetadata() {
-        let currentMetadataVersion = 1
+        let currentMetadataVersion = 2
         let candidates = tracks.filter { $0.metadataScanVersion != currentMetadataVersion }
         guard !candidates.isEmpty else { return }
 
@@ -325,6 +325,14 @@ final class MusicLibraryManager: ObservableObject {
                 )
                 guard let index = tracks.firstIndex(where: { $0.id == track.id }) else { continue }
 
+                // Version 1 used the complete file name as the title when an MP3 had no tags.
+                // Version 2 also recovers `Artist - Title` without overwriting a tagged title.
+                if tracks[index].title == Self.cleanFileName(track.fileName) {
+                    tracks[index].title = metadata.title
+                }
+                if tracks[index].artist == nil, let artist = metadata.artist {
+                    tracks[index].artist = artist
+                }
                 if tracks[index].album == nil, let album = metadata.album {
                     tracks[index].album = album
                 }
@@ -355,8 +363,9 @@ final class MusicLibraryManager: ObservableObject {
         let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
 
         var duration: TimeInterval = 0
-        var title = cleanFileName(fallbackName)
-        var artist: String? = nil
+        let fileNameMetadata = TrackFileNameMetadata.parse(fallbackName)
+        var title = fileNameMetadata.title
+        var artist = fileNameMetadata.artist
         var album: String? = nil
         var genre: String? = nil
         var artwork: Data? = nil
@@ -384,8 +393,9 @@ final class MusicLibraryManager: ObservableObject {
                 title = value
             }
             if item.commonKey == .commonKeyArtist,
-               let value = try? await item.load(.stringValue) {
-                artist = value.isEmpty ? nil : value
+               let value = try? await item.load(.stringValue),
+               !value.isEmpty {
+                artist = value
             }
             if item.identifier == .commonIdentifierAlbumName,
                let value = try? await item.load(.stringValue) {

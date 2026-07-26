@@ -155,6 +155,18 @@ final class PlaylistTests: XCTestCase {
         )
     }
 
+    func testSnapshotPlaylistKeepsTheTracksMatchedAtCreationTime() {
+        let initial = TestSupport.track(title: "First", genre: "Synthwave")
+        let addedLater = TestSupport.track(title: "Second", genre: "Synthwave")
+        let snapshot = Playlist(name: "Synth snapshot", trackIDs: [initial.id])
+
+        XCTAssertNil(snapshot.smartRule)
+        XCTAssertEqual(
+            PlaylistResolver.tracks(for: snapshot, in: [addedLater, initial]).map(\.id),
+            [initial.id]
+        )
+    }
+
     func testLegacyPlaylistDecodesWithoutSmartRule() throws {
         let id = UUID()
         let json = """

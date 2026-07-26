@@ -61,6 +61,20 @@ final class TrackTests: XCTestCase {
         XCTAssertEqual(Track(title: "T", artist: "Real", fileName: "f.m4a").displayArtist, "Real")
     }
 
+    func testFileNameMetadataRecoversArtistAndTitleWithoutSplittingRemixSuffix() {
+        let metadata = TrackFileNameMetadata.parse("Showtek - Bouncer - Extended Mix.mp3")
+
+        XCTAssertEqual(metadata.artist, "Showtek")
+        XCTAssertEqual(metadata.title, "Bouncer - Extended Mix")
+    }
+
+    func testFileNameMetadataLeavesUnstructuredNamesAsTitleOnly() {
+        let metadata = TrackFileNameMetadata.parse("Instrumental_demo.mp3")
+
+        XCTAssertNil(metadata.artist)
+        XCTAssertEqual(metadata.title, "Instrumental demo")
+    }
+
     func testEqualityByIdOnly() {
         let a = Track(title: "Same", fileName: "same.m4a")
         var copy = a
