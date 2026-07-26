@@ -142,6 +142,10 @@ struct Track: Identifiable, Codable, Equatable {
         genre ?? "Unknown Genre"
     }
 
+    func wasImported(onOrAfter date: Date) -> Bool {
+        dateImported >= date
+    }
+
     var displayGradientHues: (Double, Double) {
         usesGeneratedArtwork == true
             ? (gradientHue1, gradientHue2)

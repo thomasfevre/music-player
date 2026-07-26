@@ -75,6 +75,15 @@ final class TrackTests: XCTestCase {
         XCTAssertEqual(metadata.title, "Instrumental demo")
     }
 
+    func testImportDateCutoffIncludesTheCutoffInstant() {
+        let cutoff = Date(timeIntervalSince1970: 1_000)
+        let atCutoff = Track(title: "A", fileName: "a.mp3", dateImported: cutoff)
+        let beforeCutoff = Track(title: "B", fileName: "b.mp3", dateImported: cutoff.addingTimeInterval(-1))
+
+        XCTAssertTrue(atCutoff.wasImported(onOrAfter: cutoff))
+        XCTAssertFalse(beforeCutoff.wasImported(onOrAfter: cutoff))
+    }
+
     func testEqualityByIdOnly() {
         let a = Track(title: "Same", fileName: "same.m4a")
         var copy = a

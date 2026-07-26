@@ -209,6 +209,20 @@ final class PlaylistManager: ObservableObject {
         if changed { save() }
     }
 
+    /// Removes a set of deleted library tracks from every manual playlist in one save.
+    func removeTracksFromAll(_ trackIDs: Set<UUID>) {
+        guard !trackIDs.isEmpty else { return }
+        var changed = false
+        for index in playlists.indices where playlists[index].smartRule == nil {
+            let before = playlists[index].count
+            for trackID in trackIDs {
+                playlists[index].removeTrack(trackID)
+            }
+            changed = changed || playlists[index].count != before
+        }
+        if changed { save() }
+    }
+
     // MARK: - Lookup
 
     /// Returns the current stored copy of a playlist (so views reflect the latest edits).

@@ -14,6 +14,9 @@ struct LibraryView: View {
     @State private var showPlaylists = false
     @State private var showBrowser = false
     @State private var pendingDeletion: Track?
+    @State private var showRecentImportDeletion = false
+    @State private var recentImportCutoff = Date()
+    @State private var showRecentImportConfirmation = false
     @State private var artworkTrack: Track?
     @FocusState private var isSearchFocused: Bool
 
@@ -63,6 +66,9 @@ struct LibraryView: View {
                 TrackArtworkEditorView(trackID: track.id)
                     .environmentObject(library)
             }
+            .sheet(isPresented: $showRecentImportDeletion) {
+                recentImportDeletionSheet
+            }
             .alert(item: $pendingDeletion) { track in
                 Alert(
                     title: Text("Delete Downloaded File?"),
@@ -81,6 +87,18 @@ struct LibraryView: View {
                 Button("OK") { library.clearError() }
             } message: {
                 Text(library.lastError ?? "")
+            }
+            .confirmationDialog(
+                "Delete \(recentImportCandidates.count) Downloaded Tracks?",
+                isPresented: $showRecentImportConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete \(recentImportCandidates.count) Tracks", role: .destructive) {
+                    deleteRecentImportCandidates()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("These local files, their artwork, and their playlist entries will be permanently removed from this iPhone. Your original files in iCloud Drive are not affected.")
             }
         }
     }
@@ -306,10 +324,25 @@ struct LibraryView: View {
                 UISelectionFeedbackGenerator().selectionChanged()
             }
 
-            libraryAction(
-                title: "Import",
-                systemImage: "plus.circle.fill"
-            ) {
+            Menu {
+                Button {
+                    showFilePicker = true
+                } label: {
+                    Label("Import Music", systemImage: "plus.circle.fill")
+                }
+                Divider()
+                Button(role: .destructive) {
+                    presentRecentImportDeletion()
+                } label: {
+                    Label("Delete Recent Imports", systemImage: "trash")
+                }
+            } label: {
+                LibraryActionLabel(
+                    title: "Import",
+                    systemImage: "plus.circle.fill",
+                    tint: .white.opacity(0.82)
+                )
+            } primaryAction: {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 showFilePicker = true
             }
@@ -407,6 +440,70 @@ struct LibraryView: View {
             player.handleTrackDeleted(track)
             playlists.removeTrackFromAll(track.id)
         }
+    }
+
+    private var recentImportCandidates: [Track] {
+        library.tracks.filter { $0.wasImported(onOrAfter: recentImportCutoff) }
+    }
+
+    private var recentImportDeletionSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Choose a cutoff") {
+                    DatePicker(
+                        "Added on or after",
+                        selection: $recentImportCutoff,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    Text("Choose the start of the import batch you want to remove.")
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Preview") {
+                    LabeledContent("Tracks to remove", value: "\(recentImportCandidates.count)")
+                    ForEach(recentImportCandidates.prefix(3)) { track in
+                        Text("\(track.displayArtist) — \(track.title)")
+                            .lineLimit(1)
+                    }
+                    if recentImportCandidates.count > 3 {
+                        Text("and \(recentImportCandidates.count - 3) more")
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Only files copied inside SunoPlayer will be removed. Files in iCloud Drive stay untouched.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Delete Recent Imports")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showRecentImportDeletion = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Continue") {
+                        showRecentImportDeletion = false
+                        showRecentImportConfirmation = true
+                    }
+                    .disabled(recentImportCandidates.isEmpty)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func presentRecentImportDeletion() {
+        recentImportCutoff = Date()
+        showRecentImportDeletion = true
+    }
+
+    private func deleteRecentImportCandidates() {
+        let deletedTracks = library.deleteTracks(recentImportCandidates)
+        guard !deletedTracks.isEmpty else { return }
+
+        for track in deletedTracks {
+            player.handleTrackDeleted(track)
+        }
+        playlists.removeTracksFromAll(Set(deletedTracks.map(\.id)))
     }
 }
 

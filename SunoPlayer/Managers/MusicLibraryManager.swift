@@ -301,6 +301,48 @@ final class MusicLibraryManager: ObservableObject {
         return true
     }
 
+    /// Deletes the local copies of the supplied tracks and returns only the tracks successfully
+    /// removed. Callers use that result to remove matching playlist and playback references.
+    @discardableResult
+    func deleteTracks(_ tracksToDelete: [Track]) -> [Track] {
+        let requestedIDs = Set(tracksToDelete.map(\.id))
+        guard !requestedIDs.isEmpty else { return [] }
+
+        let fm = FileManager.default
+        var deleted: [Track] = []
+        var errors: [String] = []
+
+        for track in tracks where requestedIDs.contains(track.id) {
+            if fm.fileExists(atPath: track.fileURL.path) {
+                do {
+                    try fm.removeItem(at: track.fileURL)
+                } catch {
+                    errors.append("\(track.title): \(error.localizedDescription)")
+                    continue
+                }
+            }
+            ArtworkStorage.removeIfPresent(track.embeddedArtworkURL)
+            ArtworkStorage.removeIfPresent(track.customArtworkURL)
+            ArtworkLoader.remove(track)
+            deleted.append(track)
+        }
+
+        let deletedIDs = Set(deleted.map(\.id))
+        guard !deletedIDs.isEmpty else {
+            if !errors.isEmpty { lastError = errors.joined(separator: "\n") }
+            return []
+        }
+
+        tracks.removeAll { deletedIDs.contains($0.id) }
+        if !favoriteIDs.isDisjoint(with: deletedIDs) {
+            favoriteIDs.subtract(deletedIDs)
+            saveFavorites()
+        }
+        saveLibrary()
+        if !errors.isEmpty { lastError = errors.joined(separator: "\n") }
+        return deleted
+    }
+
     func clearError() {
         lastError = nil
     }
