@@ -2,7 +2,7 @@ import Foundation
 import SwiftUI
 
 // MARK: - Sort Order
-enum SortOrder: String, CaseIterable, Identifiable {
+enum SortOrder: String, CaseIterable, Identifiable, Codable {
     case newest = "Newest"
     case oldest = "Oldest"
     case title = "Title"
