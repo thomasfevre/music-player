@@ -15,6 +15,7 @@ struct PlaylistsView: View {
     @State private var path: [UUID] = []
     @State private var importMessage: String?
     @State private var artworkPlaylist: Playlist?
+    @State private var showNowPlaying = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -101,6 +102,21 @@ struct PlaylistsView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: player.currentTrack == nil ? 0 : 76)
+        }
+        .overlay(alignment: .bottom) {
+            if player.currentTrack != nil {
+                MiniPlayerView(showNowPlaying: $showNowPlaying)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .sheet(isPresented: $showNowPlaying) {
+            NowPlayingView(isPresented: $showNowPlaying)
+                .environmentObject(library)
+                .environmentObject(player)
+                .environmentObject(playlists)
+        }
     }
 
     private var list: some View {

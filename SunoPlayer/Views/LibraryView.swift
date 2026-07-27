@@ -18,6 +18,7 @@ struct LibraryView: View {
     @State private var recentImportCutoff = Date()
     @State private var showRecentImportConfirmation = false
     @State private var artworkTrack: Track?
+    @State private var showSettings = false
     @FocusState private var isSearchFocused: Bool
 
     // Bottom padding when mini player is visible
@@ -64,6 +65,11 @@ struct LibraryView: View {
             }
             .sheet(item: $artworkTrack) { track in
                 TrackArtworkEditorView(trackID: track.id)
+                    .environmentObject(library)
+                    .environmentObject(player)
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
                     .environmentObject(library)
                     .environmentObject(player)
             }
@@ -336,6 +342,12 @@ struct LibraryView: View {
                     presentRecentImportDeletion()
                 } label: {
                     Label("Delete Recent Imports", systemImage: "trash")
+                }
+                Divider()
+                Button {
+                    showSettings = true
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
                 }
             } label: {
                 LibraryActionLabel(

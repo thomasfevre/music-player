@@ -105,6 +105,26 @@ final class TrackTests: XCTestCase {
         XCTAssertEqual(TrackBrowseMetadata.components(from: "  "), [])
     }
 
+    func testArtworkPreferencesApplyStatsStyleAndRestoreStableColors() {
+        let previousStyle = ArtworkPreferences.defaultStyle
+        let previousUniqueColors = ArtworkPreferences.usesUniqueColors
+        defer {
+            ArtworkPreferences.defaultStyle = previousStyle
+            ArtworkPreferences.usesUniqueColors = previousUniqueColors
+        }
+
+        ArtworkPreferences.defaultStyle = .listeningPoster
+        ArtworkPreferences.usesUniqueColors = false
+        var track = Track(title: "Song", fileName: "song.mp3", gradientHue1: 0.1, gradientHue2: 0.2)
+        ArtworkPreferences.apply(to: &track)
+        XCTAssertEqual(track.artworkStyle, .listeningPoster)
+        XCTAssertEqual(track.gradientHue1, ArtworkTheme.violet.hue1)
+
+        ArtworkPreferences.usesUniqueColors = true
+        ArtworkPreferences.apply(to: &track)
+        XCTAssertEqual(track.gradientHue1, Track.stableHue(for: "song.mp3"), accuracy: 1e-12)
+    }
+
     func testImportDateCutoffIncludesTheCutoffInstant() {
         let cutoff = Date(timeIntervalSince1970: 1_000)
         let atCutoff = Track(title: "A", fileName: "a.mp3", dateImported: cutoff)

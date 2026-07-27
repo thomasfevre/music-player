@@ -184,6 +184,18 @@ final class MusicLibraryManager: ObservableObject {
         return true
     }
 
+    /// Applies the persistent artwork defaults to all library tracks without deleting photos.
+    @discardableResult
+    func applyArtworkPreferencesToAllTracks() -> Bool {
+        let previous = tracks
+        tracks.indices.forEach { ArtworkPreferences.apply(to: &tracks[$0]) }
+        guard saveLibrary() else {
+            tracks = previous
+            return false
+        }
+        return true
+    }
+
     /// Restores the embedded cover, or the app's consistent default gradient if none exists.
     @discardableResult
     func resetArtwork(for track: Track) -> Bool {
@@ -234,8 +246,10 @@ final class MusicLibraryManager: ObservableObject {
                 existingNames: existingNames,
                 docDir: docDir
             )
-            tracks.append(contentsOf: outcome.tracks)
-            if !outcome.tracks.isEmpty { saveLibrary() }
+            var importedTracks = outcome.tracks
+            importedTracks.indices.forEach { ArtworkPreferences.apply(to: &importedTracks[$0]) }
+            tracks.append(contentsOf: importedTracks)
+            if !importedTracks.isEmpty { saveLibrary() }
             if !outcome.errors.isEmpty {
                 lastError = outcome.errors.joined(separator: "\n")
             }

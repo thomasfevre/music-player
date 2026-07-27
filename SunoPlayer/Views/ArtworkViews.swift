@@ -528,3 +528,103 @@ private func themeGrid(action: @escaping (ArtworkTheme) -> Void) -> some View {
         }
     }
 }
+
+// MARK: - Settings and listening metrics
+
+struct SettingsView: View {
+    @EnvironmentObject private var library: MusicLibraryManager
+    @EnvironmentObject private var player: AudioPlayerManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var defaultStyle = ArtworkPreferences.defaultStyle
+    @State private var usesUniqueColors = ArtworkPreferences.usesUniqueColors
+    @State private var showApplyConfirmation = false
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("New track artwork", selection: $defaultStyle) {
+                        ForEach(DefaultTrackArtworkStyle.allCases) { style in
+                            Text(style.title).tag(style)
+                        }
+                    }
+                    Toggle("Use a stable unique color per generated cover", isOn: $usesUniqueColors)
+                    Button("Apply these settings to all tracks") { showApplyConfirmation = true }
+                } header: {
+                    Text("Artwork")
+                } footer: {
+                    Text("Photos are kept safely. This only changes the displayed artwork style.")
+                }
+
+                Section("Listening") {
+                    NavigationLink {
+                        ListeningStatsView()
+                            .environmentObject(library)
+                            .environmentObject(player)
+                    } label: {
+                        Label("Listening Stats", systemImage: "chart.bar.xaxis")
+                    }
+                }
+            }
+            .navigationTitle("Settings")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .onChange(of: defaultStyle) { ArtworkPreferences.defaultStyle = defaultStyle }
+            .onChange(of: usesUniqueColors) { ArtworkPreferences.usesUniqueColors = usesUniqueColors }
+            .confirmationDialog("Apply Artwork Settings?", isPresented: $showApplyConfirmation) {
+                Button("Apply to \(library.tracks.count) Tracks") { _ = library.applyArtworkPreferencesToAllTracks() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your custom photos remain available.")
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+}
+
+struct ListeningStatsView: View {
+    @EnvironmentObject private var library: MusicLibraryManager
+    @EnvironmentObject private var player: AudioPlayerManager
+
+    private var summaries: [UUID: TrackListeningSummary] { player.listeningHistory.history.summaries }
+    private var totalPlays: Int { summaries.values.reduce(0) { $0 + $1.playCount } }
+    private var totalMinutes: Int { Int(summaries.values.reduce(0) { $0 + $1.totalListenedSeconds } / 60) }
+    private var totalSkips: Int { summaries.values.reduce(0) { $0 + $1.earlySkipCount + $1.lateSkipCount } }
+    private var topTracks: [(track: Track, summary: TrackListeningSummary)] {
+        library.tracks.compactMap { track in
+            guard let summary = summaries[track.id], summary.playCount > 0 else { return nil }
+            return (track, summary)
+        }
+        .sorted { $0.summary.playCount > $1.summary.playCount }
+        .prefix(10)
+        .map { $0 }
+    }
+
+    var body: some View {
+        List {
+            Section("Your listening") {
+                LabeledContent("Plays", value: "\(totalPlays)")
+                LabeledContent("Listening time", value: "\(totalMinutes) min")
+                LabeledContent("Skips", value: "\(totalSkips)")
+            }
+            Section("Most played") {
+                if topTracks.isEmpty {
+                    Text("Play a few tracks to see your listening patterns here.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(topTracks, id: \.track.id) { item in
+                        HStack(spacing: 12) {
+                            TrackArtworkView(track: item.track, size: 38, cornerRadius: 9)
+                            VStack(alignment: .leading) {
+                                Text(item.track.title).lineLimit(1)
+                                Text(item.track.displayArtist).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text("\(item.summary.playCount)").font(.headline.monospacedDigit())
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Listening Stats")
+    }
+}
