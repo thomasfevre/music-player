@@ -8,7 +8,7 @@ struct LibraryBrowserView: View {
     @State private var category: Category = .recent
 
     enum Category: String, CaseIterable, Identifiable {
-        case recent = "Recent"
+        case recent = "Recently Played"
         case artists = "Artists"
         case albums = "Albums"
         case genres = "Genres"
@@ -62,7 +62,18 @@ struct LibraryBrowserView: View {
     }
 
     private var recentTracks: [Track] {
-        Array(library.tracks.sorted { $0.dateImported > $1.dateImported }.prefix(100))
+        let ids = player.listeningHistory.history.recentEvents
+            .filter { $0.kind == .playback }
+            .reversed()
+            .reduce(into: [UUID]()) { result, event in
+                if !result.contains(event.trackID) { result.append(event.trackID) }
+            }
+        let byID = Dictionary(uniqueKeysWithValues: library.tracks.map { ($0.id, $0) })
+        let currentID = player.currentTrack?.id
+        return ([currentID].compactMap { $0 } + ids).reduce(into: [Track]()) { result, id in
+            guard let track = byID[id], !result.contains(where: { $0.id == id }) else { return }
+            result.append(track)
+        }
     }
 
     private var groups: [(name: String, tracks: [Track])] {

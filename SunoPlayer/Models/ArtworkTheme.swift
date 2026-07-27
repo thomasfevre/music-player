@@ -14,9 +14,17 @@ enum DefaultTrackArtworkStyle: String, CaseIterable, Identifiable {
     }
 }
 
+enum StatsCoverMetric: String, CaseIterable, Identifiable {
+    case plays, minutes, skips
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+}
+
 enum ArtworkPreferences {
     private static let styleKey = "defaultTrackArtworkStyle"
     private static let uniqueColorsKey = "usesUniqueArtworkColors"
+    private static let badgesKey = "showsListeningBadges"
+    private static let metricKey = "statsCoverMetric"
 
     static var defaultStyle: DefaultTrackArtworkStyle {
         get { DefaultTrackArtworkStyle(rawValue: UserDefaults.standard.string(forKey: styleKey) ?? "") ?? .original }
@@ -26,6 +34,16 @@ enum ArtworkPreferences {
     static var usesUniqueColors: Bool {
         get { UserDefaults.standard.object(forKey: uniqueColorsKey) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: uniqueColorsKey) }
+    }
+
+    static var showsListeningBadges: Bool {
+        get { UserDefaults.standard.object(forKey: badgesKey) as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: badgesKey) }
+    }
+
+    static var statsCoverMetric: StatsCoverMetric {
+        get { StatsCoverMetric(rawValue: UserDefaults.standard.string(forKey: metricKey) ?? "") ?? .plays }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: metricKey) }
     }
 
     static func apply(to track: inout Track) {

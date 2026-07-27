@@ -1,5 +1,32 @@
 import Foundation
 
+struct SavedLibraryFilter: Codable, Identifiable, Equatable {
+    let id: UUID
+    var name: String
+    var query: String
+    var favoritesOnly: Bool
+    var sortOrder: SortOrder
+
+    init(id: UUID = UUID(), name: String, query: String, favoritesOnly: Bool, sortOrder: SortOrder = .newest) {
+        self.id = id
+        self.name = name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Saved Filter" : name
+        self.query = query
+        self.favoritesOnly = favoritesOnly
+        self.sortOrder = sortOrder
+    }
+
+    private static let defaultsKey = "savedLibraryFilters"
+
+    static func load() -> [SavedLibraryFilter] {
+        guard let data = UserDefaults.standard.data(forKey: defaultsKey) else { return [] }
+        return (try? JSONDecoder().decode([SavedLibraryFilter].self, from: data)) ?? []
+    }
+
+    static func save(_ filters: [SavedLibraryFilter]) {
+        UserDefaults.standard.set(try? JSONEncoder().encode(filters), forKey: defaultsKey)
+    }
+}
+
 // MARK: - TrackQuery
 /// Pure, testable filtering + sorting for the library's displayed tracks.
 enum TrackQuery {

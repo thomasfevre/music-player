@@ -61,11 +61,19 @@ struct TrackListeningPosterArtworkView: View {
     @ObservedObject var listeningHistory: ListeningHistoryStore
     var size: CGFloat
     var cornerRadius: CGFloat
+    @AppStorage("statsCoverMetric") private var statsCoverMetricRaw = "plays"
 
     private var isCompact: Bool { size < 90 }
     private var summary: TrackListeningSummary { listeningHistory.summary(for: track.id) }
     private var plays: Int { summary.playCount }
     private var listenedMinutes: Int { Int(summary.totalListenedSeconds / 60) }
+    private var headline: String {
+        switch StatsCoverMetric(rawValue: statsCoverMetricRaw) ?? .plays {
+        case .plays: return plays == 0 ? "NEW" : "\(plays)"
+        case .minutes: return listenedMinutes == 0 ? "NEW" : "\(listenedMinutes)"
+        case .skips: return "\(summary.earlySkipCount + summary.lateSkipCount)"
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -88,7 +96,7 @@ struct TrackListeningPosterArtworkView: View {
 
                 Spacer(minLength: 0)
 
-                Text(plays == 0 ? "NEW" : "\(plays)")
+                Text(headline)
                     .font(.system(size: size * (isCompact ? 0.55 : 0.42), weight: .black, design: .rounded))
                     .minimumScaleFactor(0.45)
                     .foregroundStyle(.white)
@@ -537,6 +545,8 @@ struct SettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var defaultStyle = ArtworkPreferences.defaultStyle
     @State private var usesUniqueColors = ArtworkPreferences.usesUniqueColors
+    @State private var showsListeningBadges = ArtworkPreferences.showsListeningBadges
+    @State private var statsCoverMetric = ArtworkPreferences.statsCoverMetric
     @State private var showApplyConfirmation = false
 
     var body: some View {
@@ -549,6 +559,9 @@ struct SettingsView: View {
                         }
                     }
                     Toggle("Use a stable unique color per generated cover", isOn: $usesUniqueColors)
+                    Picker("Stats Poster headline", selection: $statsCoverMetric) {
+                        ForEach(StatsCoverMetric.allCases) { Text($0.title).tag($0) }
+                    }
                     Button("Apply these settings to all tracks") { showApplyConfirmation = true }
                 } header: {
                     Text("Artwork")
@@ -557,6 +570,7 @@ struct SettingsView: View {
                 }
 
                 Section("Listening") {
+                    Toggle("Show listening badges in lists", isOn: $showsListeningBadges)
                     NavigationLink {
                         ListeningStatsView()
                             .environmentObject(library)
@@ -570,6 +584,8 @@ struct SettingsView: View {
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .onChange(of: defaultStyle) { ArtworkPreferences.defaultStyle = defaultStyle }
             .onChange(of: usesUniqueColors) { ArtworkPreferences.usesUniqueColors = usesUniqueColors }
+            .onChange(of: showsListeningBadges) { ArtworkPreferences.showsListeningBadges = showsListeningBadges }
+            .onChange(of: statsCoverMetric) { ArtworkPreferences.statsCoverMetric = statsCoverMetric }
             .confirmationDialog("Apply Artwork Settings?", isPresented: $showApplyConfirmation) {
                 Button("Apply to \(library.tracks.count) Tracks") { _ = library.applyArtworkPreferencesToAllTracks() }
                 Button("Cancel", role: .cancel) {}

@@ -8,6 +8,15 @@ struct TrackRowView: View {
     let isActive: Bool
     let isPlaying: Bool
     var isFavorite: Bool = false
+    @EnvironmentObject private var player: AudioPlayerManager
+    @AppStorage("showsListeningBadges") private var showsListeningBadges = true
+
+    private var badgeText: String? {
+        guard showsListeningBadges else { return nil }
+        let summary = player.listeningHistory.summary(for: track.id)
+        if summary.playCount == 0 { return "NEW" }
+        return "\(summary.playCount) plays"
+    }
 
     var body: some View {
         HStack(spacing: 14) {
@@ -30,10 +39,20 @@ struct TrackRowView: View {
                     .foregroundColor(isActive ? .white : .white.opacity(0.9))
                     .lineLimit(1)
 
-                Text(track.displayArtist)
-                    .font(.system(size: 13))
-                    .foregroundColor(.white.opacity(0.45))
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(track.displayArtist)
+                        .font(.system(size: 13))
+                        .foregroundColor(.white.opacity(0.45))
+                        .lineLimit(1)
+                    if let badgeText {
+                        Text(badgeText)
+                            .font(.caption2.weight(.semibold))
+                            .foregroundStyle(.white.opacity(0.68))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.white.opacity(0.10), in: Capsule())
+                    }
+                }
             }
 
             Spacer()

@@ -19,6 +19,9 @@ struct LibraryView: View {
     @State private var showRecentImportConfirmation = false
     @State private var artworkTrack: Track?
     @State private var showSettings = false
+    @State private var savedFilterName = ""
+    @State private var savedFilters: [SavedLibraryFilter] = SavedLibraryFilter.load()
+    @State private var showSaveFilter = false
     @FocusState private var isSearchFocused: Bool
 
     // Bottom padding when mini player is visible
@@ -76,6 +79,21 @@ struct LibraryView: View {
             .sheet(isPresented: $showRecentImportDeletion) {
                 recentImportDeletionSheet
             }
+            .alert("Save Filter", isPresented: $showSaveFilter) {
+                TextField("Name", text: $savedFilterName)
+                Button("Cancel", role: .cancel) {}
+                Button("Save") {
+                    savedFilters.append(
+                        SavedLibraryFilter(
+                            name: savedFilterName,
+                            query: library.searchText,
+                            favoritesOnly: library.showFavoritesOnly,
+                            sortOrder: library.sortOrder
+                        )
+                    )
+                    SavedLibraryFilter.save(savedFilters)
+                }
+            }
             .alert(item: $pendingDeletion) { track in
                 Alert(
                     title: Text("Delete Downloaded File?"),
@@ -112,8 +130,7 @@ struct LibraryView: View {
 
     // MARK: Track List
     private var trackList: some View {
-        ScrollView {
-            LazyVStack(spacing: 4) {
+        List {
                 ForEach(library.displayedTracks) { track in
                     TrackRowView(
                         track: track,
@@ -125,6 +142,31 @@ struct LibraryView: View {
                         player.play(track, in: library.displayedTracks, source: .library)
                         showNowPlaying = true
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button {
+                            let favorite = library.toggleFavorite(track)
+                            player.recordFavoriteChange(for: track.id, isFavorite: favorite)
+                        } label: {
+                            Label(library.isFavorite(track) ? "Unfavorite" : "Favorite", systemImage: "heart")
+                        }
+                        .tint(.pink)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button {
+                            player.enqueueNext(track)
+                        } label: {
+                            Label("Play Next", systemImage: "text.insert")
+                        }
+                        .tint(.blue)
+                        if let playlist = playlists.lastUsedManualPlaylist {
+                            Button {
+                                playlists.addTrack(track.id, to: playlist)
+                            } label: {
+                                Label("Add to \(playlist.name)", systemImage: "text.badge.plus")
+                            }
+                            .tint(.purple)
+                        }
                     }
                     .contextMenu {
                         Button {
@@ -179,12 +221,13 @@ struct LibraryView: View {
                             Label("Delete Downloaded File", systemImage: "trash")
                         }
                     }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12))
                 }
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-            .padding(.bottom, listBottomPadding + 16)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .contentMargins(.bottom, listBottomPadding + 16, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
     }
 
@@ -416,6 +459,29 @@ struct LibraryView: View {
                         order.rawValue,
                         systemImage: library.sortOrder == order ? "checkmark" : "circle"
                     )
+                }
+            }
+            Divider()
+            Button("Save Current Filter") {
+                savedFilterName = library.searchText.isEmpty ? "My Filter" : library.searchText
+                showSaveFilter = true
+            }
+            if !savedFilters.isEmpty {
+                Menu("Saved Filters") {
+                    ForEach(savedFilters) { filter in
+                        Button(filter.name) {
+                            library.searchText = filter.query
+                            library.showFavoritesOnly = filter.favoritesOnly
+                            library.sortOrder = filter.sortOrder
+                        }
+                    }
+                    Divider()
+                    ForEach(savedFilters) { filter in
+                        Button("Delete \(filter.name)", role: .destructive) {
+                            savedFilters.removeAll { $0.id == filter.id }
+                            SavedLibraryFilter.save(savedFilters)
+                        }
+                    }
                 }
             }
         } label: {

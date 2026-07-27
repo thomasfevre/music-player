@@ -125,6 +125,15 @@ final class TrackTests: XCTestCase {
         XCTAssertEqual(track.gradientHue1, Track.stableHue(for: "song.mp3"), accuracy: 1e-12)
     }
 
+    func testSavedLibraryFilterKeepsSearchAndFavoriteConstraint() {
+        let filter = SavedLibraryFilter(name: "EDM favorites", query: "EDM", favoritesOnly: true, sortOrder: .title)
+
+        XCTAssertEqual(filter.name, "EDM favorites")
+        XCTAssertEqual(filter.query, "EDM")
+        XCTAssertTrue(filter.favoritesOnly)
+        XCTAssertEqual(filter.sortOrder, .title)
+    }
+
     func testImportDateCutoffIncludesTheCutoffInstant() {
         let cutoff = Date(timeIntervalSince1970: 1_000)
         let atCutoff = Track(title: "A", fileName: "a.mp3", dateImported: cutoff)
