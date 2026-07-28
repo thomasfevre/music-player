@@ -25,4 +25,18 @@ final class AudioPolicyTests: XCTestCase {
         XCTAssertFalse(AudioRoutePolicy.shouldPause(reason: .categoryChange))
         XCTAssertFalse(AudioRoutePolicy.shouldPause(reason: .routeConfigurationChange))
     }
+
+    func testCrossfadeStartsInsideConfiguredWindow() {
+        XCTAssertFalse(CrossfadePolicy.shouldBegin(position: 96.9, duration: 100, configured: 3, hasNextTrack: true, alreadyStarted: false))
+        XCTAssertTrue(CrossfadePolicy.shouldBegin(position: 97, duration: 100, configured: 3, hasNextTrack: true, alreadyStarted: false))
+    }
+
+    func testCrossfadeLeadIsClampedForShortTracks() {
+        XCTAssertEqual(CrossfadePolicy.transitionLeadTime(duration: 8, configured: 5), 2)
+    }
+
+    func testCrossfadeRequiresAnotherTrackAndRunsOnce() {
+        XCTAssertFalse(CrossfadePolicy.shouldBegin(position: 99, duration: 100, configured: 3, hasNextTrack: false, alreadyStarted: false))
+        XCTAssertFalse(CrossfadePolicy.shouldBegin(position: 99, duration: 100, configured: 3, hasNextTrack: true, alreadyStarted: true))
+    }
 }

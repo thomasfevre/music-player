@@ -29,6 +29,10 @@ final class AudioPlayerManager: NSObject, ObservableObject {
 
     // MARK: Private
     private var player: AVPlayer?
+    private var fadingOutPlayer: AVPlayer?
+    private var crossfadeCancellable: AnyCancellable?
+    private var pendingCrossfadeDuration: TimeInterval?
+    private var crossfadeStartedForCurrentItem = false
     private var timeObserver: Any?
     private var itemStatusObservation: NSKeyValueObservation?
     private var queue = PlaybackQueue()
@@ -84,6 +88,8 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         sessionObservers.forEach { NotificationCenter.default.removeObserver($0) }
         for (command, token) in remoteTargets { command.removeTarget(token) }
         sleepCancellable?.cancel()
+        crossfadeCancellable?.cancel()
+        fadingOutPlayer?.pause()
     }
 
     // MARK: - Playback Control
@@ -94,6 +100,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         in newQueue: [Track],
         source: PlaybackSource = .library
     ) {
+        let shouldCrossfade = isPlaying
         finalizePlayback(reason: .replacedBySelection)
         stopAutoDJ()
         manuallyQueuedTrackIDs.removeAll()
@@ -104,14 +111,13 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         queue.setQueue(newQueue, startAt: track)
         syncQueue()
         guard let current = queue.currentTrack else { return }
-        loadAndPlay(track: current, source: source)
+        loadAndPlay(track: current, source: source, crossfade: shouldCrossfade)
     }
 
     func playPause() {
         guard player != nil else { return }
         if isPlaying {
-            player?.pause()
-            isPlaying = false
+            pausePlayback()
             persistPlayback()
         } else {
             guard activateSession() else { updateNowPlayingPlaybackState(); return }
@@ -125,10 +131,13 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         advance(reason: .manualSkip)
     }
 
-    private func advance(reason: ListeningEndReason) {
+    private func advance(reason: ListeningEndReason, crossfadeDuration: TimeInterval? = nil) {
         guard !queue.isEmpty else { return }
         let previousTrackID = currentTrack?.id
-        finalizePlayback(reason: reason)
+        finalizePlayback(
+            reason: reason,
+            additionalListenedSeconds: reason == .naturalCompletion ? crossfadeDuration ?? 0 : 0
+        )
         queue.repeatMode = repeatMode
         if repeatMode == .one {
             guard player != nil else { return }   // nothing loaded — never claim "playing"
@@ -163,15 +172,15 @@ final class AudioPlayerManager: NSObject, ObservableObject {
             loadAndPlay(
                 track: track,
                 source: source,
-                previousTrackID: previousTrackID
+                previousTrackID: previousTrackID,
+                crossfade: reason == .naturalCompletion || reason == .manualSkip,
+                crossfadeDuration: crossfadeDuration
             )
             replenishAutoDJQueue()
         } else {
             // End of queue with repeat off.
             stopAutoDJ()
-            player?.pause()
-            isPlaying = false
-            updateNowPlayingPlaybackState()
+            pausePlayback()
         }
     }
 
@@ -198,7 +207,8 @@ final class AudioPlayerManager: NSObject, ObservableObject {
                 loadAndPlay(
                     track: track,
                     source: .queue,
-                    previousTrackID: previousTrackID
+                    previousTrackID: previousTrackID,
+                    crossfade: isPlaying
                 )
             }
         case .none:
@@ -548,9 +558,20 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         startAt: TimeInterval = 0,
         source: PlaybackSource = .queue,
         previousTrackID: UUID? = nil,
-        wasReplay: Bool = false
+        wasReplay: Bool = false,
+        crossfade: Bool = false,
+        crossfadeDuration: TimeInterval? = nil
     ) {
-        tearDownCurrentItem()
+        let configuredCrossfade = min(
+            PlaybackPreferences.crossfadeDuration,
+            crossfadeDuration ?? PlaybackPreferences.crossfadeDuration
+        )
+        let shouldCrossfade = crossfade && isPlaying && configuredCrossfade > 0
+        let outgoingPlayer = tearDownCurrentItem(keepPlaying: shouldCrossfade)
+        if shouldCrossfade {
+            fadingOutPlayer = outgoingPlayer
+            pendingCrossfadeDuration = configuredCrossfade
+        }
 
         guard FileManager.default.fileExists(atPath: track.fileURL.path) else {
             handlePlaybackFailure("Audio file is missing: \(track.title)")
@@ -575,7 +596,9 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         let item = AVPlayerItem(url: track.fileURL)
         let newPlayer = AVPlayer(playerItem: item)
         newPlayer.defaultRate = playbackRate   // play() honors this rate
+        newPlayer.volume = shouldCrossfade ? 0 : 1
         player = newPlayer
+        crossfadeStartedForCurrentItem = false
 
         // Defer the resume seek until the item is ready; seeking an unknown-status item can
         // silently no-op, leaving playback at 0 while the UI shows the restored position.
@@ -607,16 +630,18 @@ final class AudioPlayerManager: NSObject, ObservableObject {
             switch observedItem.status {
             case .readyToPlay:
                 Task { @MainActor in
-                    guard let self, observedItem === self.player?.currentItem,
-                          let target = self.pendingSeek else { return }
-                    self.pendingSeek = nil
-                    // Clamp against the real duration now that it's known, guarding corrupted saves.
-                    let realDuration = observedItem.duration.isNumeric ? observedItem.duration.seconds : self.duration
-                    let clamped = realDuration > 0 ? min(target, realDuration) : target
-                    self.player?.seek(to: CMTime(seconds: clamped, preferredTimescale: 1000),
-                                      toleranceBefore: .zero, toleranceAfter: .zero)
-                    self.currentTime = clamped
-                    self.updateNowPlayingInfo()
+                    guard let self, observedItem === self.player?.currentItem else { return }
+                    if let target = self.pendingSeek {
+                        self.pendingSeek = nil
+                        // Clamp against the real duration now that it's known, guarding corrupted saves.
+                        let realDuration = observedItem.duration.isNumeric ? observedItem.duration.seconds : self.duration
+                        let clamped = realDuration > 0 ? min(target, realDuration) : target
+                        self.player?.seek(to: CMTime(seconds: clamped, preferredTimescale: 1000),
+                                          toleranceBefore: .zero, toleranceAfter: .zero)
+                        self.currentTime = clamped
+                        self.updateNowPlayingInfo()
+                    }
+                    self.startPendingCrossfadeIfNeeded()
                 }
             case .failed:
                 let message = observedItem.error?.localizedDescription ?? "This track could not be loaded"
@@ -644,6 +669,20 @@ final class AudioPlayerManager: NSObject, ObservableObject {
                 if self.isPlaying, abs(self.currentTime - self.lastPersistedTime) >= 5 {
                     self.persistPlayback()
                 }
+                let crossfadeLead = CrossfadePolicy.transitionLeadTime(
+                    duration: self.duration,
+                    configured: PlaybackPreferences.crossfadeDuration
+                )
+                if self.isPlaying, CrossfadePolicy.shouldBegin(
+                    position: self.currentTime,
+                    duration: self.duration,
+                    configured: PlaybackPreferences.crossfadeDuration,
+                    hasNextTrack: !self.queue.upcomingTracks.isEmpty || self.repeatMode == .all,
+                    alreadyStarted: self.crossfadeStartedForCurrentItem
+                ) {
+                    self.crossfadeStartedForCurrentItem = true
+                    self.advance(reason: .naturalCompletion, crossfadeDuration: crossfadeLead)
+                }
             }
         }
 
@@ -658,7 +697,15 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         persistPlayback()
     }
 
-    private func tearDownCurrentItem() {
+    @discardableResult
+    private func tearDownCurrentItem(keepPlaying: Bool = false) -> AVPlayer? {
+        crossfadeCancellable?.cancel()
+        crossfadeCancellable = nil
+        pendingCrossfadeDuration = nil
+        fadingOutPlayer?.pause()
+        fadingOutPlayer = nil
+
+        let outgoingPlayer = player
         if let timeObserver, let player {
             player.removeTimeObserver(timeObserver)
         }
@@ -668,8 +715,59 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         itemObservers.forEach { NotificationCenter.default.removeObserver($0) }
         itemObservers.removeAll()
         pendingSeek = nil
-        player?.pause()
+        if !keepPlaying { outgoingPlayer?.pause() }
         player = nil
+        return outgoingPlayer
+    }
+
+    private func startCrossfade(from outgoing: AVPlayer, to incoming: AVPlayer, duration: TimeInterval) {
+        crossfadeCancellable?.cancel()
+        if fadingOutPlayer !== outgoing {
+            fadingOutPlayer?.pause()
+        }
+        fadingOutPlayer = outgoing
+
+        let startedAt = Date()
+        crossfadeCancellable = Timer.publish(every: 0.05, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self, weak incoming, weak outgoing] _ in
+                MainActor.assumeIsolated {
+                    guard let self, let incoming, let outgoing else { return }
+                    let progress = min(1, Date().timeIntervalSince(startedAt) / max(0.1, duration))
+                    incoming.volume = Float(progress)
+                    outgoing.volume = Float(1 - progress)
+                    if progress >= 1 {
+                        outgoing.pause()
+                        self.fadingOutPlayer = nil
+                        self.crossfadeCancellable?.cancel()
+                        self.crossfadeCancellable = nil
+                    }
+                }
+            }
+    }
+
+    private func startPendingCrossfadeIfNeeded() {
+        guard let outgoing = fadingOutPlayer,
+              let incoming = player,
+              let duration = pendingCrossfadeDuration else { return }
+        pendingCrossfadeDuration = nil
+        startCrossfade(from: outgoing, to: incoming, duration: duration)
+    }
+
+    private func finishCrossfadeImmediately() {
+        crossfadeCancellable?.cancel()
+        crossfadeCancellable = nil
+        pendingCrossfadeDuration = nil
+        fadingOutPlayer?.pause()
+        fadingOutPlayer = nil
+        player?.volume = 1
+    }
+
+    private func pausePlayback() {
+        finishCrossfadeImmediately()
+        player?.pause()
+        isPlaying = false
+        updateNowPlayingPlaybackState()
     }
 
     /// Centralized failure handling for both pre-load (missing file) and async item failures.
@@ -725,7 +823,10 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         playbackObservation = observation
     }
 
-    private func finalizePlayback(reason: ListeningEndReason) {
+    private func finalizePlayback(
+        reason: ListeningEndReason,
+        additionalListenedSeconds: TimeInterval = 0
+    ) {
         guard let observation = playbackObservation else { return }
         playbackObservation = nil
         recordListeningEvent(.playback(
@@ -734,7 +835,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
             source: observation.source,
             startedAt: observation.startedAt,
             endedAt: Date(),
-            listenedSeconds: observation.listenedSeconds,
+            listenedSeconds: observation.listenedSeconds + additionalListenedSeconds,
             duration: duration,
             endReason: reason,
             wasReplay: observation.wasReplay
@@ -862,9 +963,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         case .began:
             wasPlayingBeforeInterruption = isPlaying
             if isPlaying {
-                player?.pause()
-                isPlaying = false
-                updateNowPlayingPlaybackState()
+                pausePlayback()
             }
         case .ended:
             let options = (info[AVAudioSessionInterruptionOptionKey] as? UInt)
@@ -888,9 +987,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
               let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
 
         if AudioRoutePolicy.shouldPause(reason: reason), isPlaying {
-            player?.pause()
-            isPlaying = false
-            updateNowPlayingPlaybackState()
+            pausePlayback()
         }
     }
 
@@ -921,9 +1018,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         let pause = center.pauseCommand.addTarget { [weak self] _ in
             self?.onMain {
                 guard let self, self.player != nil else { return }
-                self.player?.pause()
-                self.isPlaying = false
-                self.updateNowPlayingPlaybackState()
+                self.pausePlayback()
             }
             return .success
         }

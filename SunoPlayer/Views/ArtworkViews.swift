@@ -547,6 +547,7 @@ struct SettingsView: View {
     @State private var usesUniqueColors = ArtworkPreferences.usesUniqueColors
     @State private var showsListeningBadges = ArtworkPreferences.showsListeningBadges
     @State private var statsCoverMetric = ArtworkPreferences.statsCoverMetric
+    @State private var crossfadeDuration = PlaybackPreferences.crossfadeDuration
     @State private var showApplyConfirmation = false
 
     var body: some View {
@@ -579,6 +580,22 @@ struct SettingsView: View {
                         Label("Listening Stats", systemImage: "chart.bar.xaxis")
                     }
                 }
+
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Crossfade")
+                            Spacer()
+                            Text(crossfadeDuration == 0 ? "Off" : "\(Int(crossfadeDuration)) sec")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $crossfadeDuration, in: 0...8, step: 1)
+                    }
+                } header: {
+                    Text("Playback")
+                } footer: {
+                    Text("Overlaps the end of one track with the beginning of the next. Short tracks use a shorter transition automatically.")
+                }
             }
             .navigationTitle("Settings")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -586,6 +603,7 @@ struct SettingsView: View {
             .onChange(of: usesUniqueColors) { ArtworkPreferences.usesUniqueColors = usesUniqueColors }
             .onChange(of: showsListeningBadges) { ArtworkPreferences.showsListeningBadges = showsListeningBadges }
             .onChange(of: statsCoverMetric) { ArtworkPreferences.statsCoverMetric = statsCoverMetric }
+            .onChange(of: crossfadeDuration) { PlaybackPreferences.crossfadeDuration = crossfadeDuration }
             .confirmationDialog("Apply Artwork Settings?", isPresented: $showApplyConfirmation) {
                 Button("Apply to \(library.tracks.count) Tracks") { _ = library.applyArtworkPreferencesToAllTracks() }
                 Button("Cancel", role: .cancel) {}
