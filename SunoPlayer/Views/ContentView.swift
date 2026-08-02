@@ -24,6 +24,9 @@ struct ContentView: View {
         .animation(.spring(response: 0.4, dampingFraction: 0.8), value: player.currentTrack != nil)
         .onAppear {
             #if DEBUG
+            if ProcessInfo.processInfo.arguments.contains("UITEST_SEED") {
+                _ = player.listeningHistory.seedDemoHistory(for: library.tracks)
+            }
             if ProcessInfo.processInfo.arguments.contains("UITEST_AUTOPLAY"),
                let first = library.displayedTracks.first {
                 player.play(first, in: library.displayedTracks, source: .library)

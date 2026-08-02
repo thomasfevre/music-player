@@ -56,9 +56,11 @@ final class MusicLibraryManager: ObservableObject {
             if i == 0 {
                 try? Self.silentWAV(seconds: m.4).write(to: Track.documentsDirectory.appendingPathComponent(fileName))
             }
-            demo.append(Track(title: m.0, artist: m.1, album: m.2, genre: m.3,
+            var track = Track(title: m.0, artist: m.1, album: m.2, genre: m.3,
                               fileName: fileName, duration: m.4,
-                              dateImported: Date().addingTimeInterval(Double(-i) * 3600)))
+                              dateImported: Date().addingTimeInterval(Double(-i) * 3600))
+            ArtworkPreferences.apply(to: &track)
+            demo.append(track)
         }
         tracks = demo
     }

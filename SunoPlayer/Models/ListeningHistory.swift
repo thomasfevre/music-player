@@ -454,6 +454,38 @@ final class ListeningHistoryStore: ObservableObject {
         lastError = nil
     }
 
+    #if DEBUG
+    /// Creates representative local-only metrics for App Store screenshot capture.
+    @discardableResult
+    func seedDemoHistory(for tracks: [Track]) -> Bool {
+        let playCounts = [12, 9, 7, 5, 3, 2]
+        let now = Date()
+        return update { history in
+            history.reset()
+            for (trackIndex, track) in tracks.prefix(playCounts.count).enumerated() {
+                for playIndex in 0..<playCounts[trackIndex] {
+                    let isSkip = playIndex == playCounts[trackIndex] - 1 && trackIndex.isMultiple(of: 2)
+                    let listenedSeconds = isSkip ? 14 : track.duration * 0.88
+                    let endedAt = now.addingTimeInterval(-Double(trackIndex * 3_600 + playIndex * 600))
+                    history.record(
+                        .playback(
+                            trackID: track.id,
+                            previousTrackID: trackIndex > 0 ? tracks[trackIndex - 1].id : nil,
+                            source: .library,
+                            startedAt: endedAt.addingTimeInterval(-listenedSeconds),
+                            endedAt: endedAt,
+                            listenedSeconds: listenedSeconds,
+                            duration: track.duration,
+                            endReason: isSkip ? .manualSkip : .naturalCompletion,
+                            wasReplay: playIndex > 0
+                        )
+                    )
+                }
+            }
+        }
+    }
+    #endif
+
     private func update(_ mutation: (inout ListeningHistory) -> Void) -> Bool {
         var updated = history
         mutation(&updated)

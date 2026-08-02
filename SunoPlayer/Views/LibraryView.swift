@@ -125,6 +125,14 @@ struct LibraryView: View {
             } message: {
                 Text("These local files, their artwork, and their playlist entries will be permanently removed from this iPhone. Your original files in iCloud Drive are not affected.")
             }
+            #if DEBUG
+            .onAppear {
+                if ProcessInfo.processInfo.arguments.contains("UITEST_SETTINGS") ||
+                    ProcessInfo.processInfo.arguments.contains("UITEST_STATS") {
+                    showSettings = true
+                }
+            }
+            #endif
         }
     }
 

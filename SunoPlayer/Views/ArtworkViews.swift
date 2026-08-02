@@ -549,6 +549,7 @@ struct SettingsView: View {
     @State private var statsCoverMetric = ArtworkPreferences.statsCoverMetric
     @State private var crossfadeDuration = PlaybackPreferences.crossfadeDuration
     @State private var showApplyConfirmation = false
+    @State private var showListeningStats = false
 
     var body: some View {
         NavigationStack {
@@ -599,6 +600,11 @@ struct SettingsView: View {
             }
             .navigationTitle("Settings")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .navigationDestination(isPresented: $showListeningStats) {
+                ListeningStatsView()
+                    .environmentObject(library)
+                    .environmentObject(player)
+            }
             .onChange(of: defaultStyle) { ArtworkPreferences.defaultStyle = defaultStyle }
             .onChange(of: usesUniqueColors) { ArtworkPreferences.usesUniqueColors = usesUniqueColors }
             .onChange(of: showsListeningBadges) { ArtworkPreferences.showsListeningBadges = showsListeningBadges }
@@ -610,6 +616,13 @@ struct SettingsView: View {
             } message: {
                 Text("Your custom photos remain available.")
             }
+            #if DEBUG
+            .onAppear {
+                if ProcessInfo.processInfo.arguments.contains("UITEST_STATS") {
+                    showListeningStats = true
+                }
+            }
+            #endif
         }
         .preferredColorScheme(.dark)
     }
