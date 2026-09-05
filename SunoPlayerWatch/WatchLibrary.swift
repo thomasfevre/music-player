@@ -35,6 +35,7 @@ final class WatchLibrary: NSObject, ObservableObject {
         }
         tracks.remove(atOffsets: offsets)
         save()
+        publishStorageState()
     }
 
     func clearError() {
@@ -74,6 +75,7 @@ final class WatchLibrary: NSObject, ObservableObject {
             tracks.removeAll { $0.id == id }
             tracks.insert(track, at: 0)
             save()
+            publishStorageState()
             lastError = nil
         } catch {
             lastError = "Could not store \(title): \(error.localizedDescription)"
@@ -94,6 +96,18 @@ final class WatchLibrary: NSObject, ObservableObject {
             lastError = error.localizedDescription
         }
     }
+
+    private func publishStorageState() {
+        guard WCSession.isSupported() else { return }
+        let attributes = try? FileManager.default.attributesOfFileSystem(
+            forPath: Self.documentsDirectory.path
+        )
+        let available = (attributes?[.systemFreeSize] as? NSNumber)?.int64Value ?? 0
+        try? WCSession.default.updateApplicationContext([
+            "watchStorageBytes": NSNumber(value: storageBytes),
+            "watchAvailableBytes": NSNumber(value: available)
+        ])
+    }
 }
 
 extension WatchLibrary: WCSessionDelegate {
@@ -104,6 +118,8 @@ extension WatchLibrary: WCSessionDelegate {
     ) {
         if let error {
             DispatchQueue.main.async { self.lastError = error.localizedDescription }
+        } else if activationState == .activated {
+            DispatchQueue.main.async { self.publishStorageState() }
         }
     }
 

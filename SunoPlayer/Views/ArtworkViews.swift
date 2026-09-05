@@ -550,6 +550,7 @@ struct SettingsView: View {
     @State private var crossfadeDuration = PlaybackPreferences.crossfadeDuration
     @State private var showApplyConfirmation = false
     @State private var showListeningStats = false
+    @State private var showWatchLibraryConfirmation = false
     @ObservedObject private var watchTransfer = WatchTransferManager.shared
 
     var body: some View {
@@ -606,6 +607,41 @@ struct SettingsView: View {
                     }
                     LabeledContent("Queued transfers", value: "\(watchTransfer.pendingCount)")
                     LabeledContent("Delivered this session", value: "\(watchTransfer.completedTrackIDs.count)")
+                    LabeledContent("Library size", value: formattedBytes(librarySizeBytes))
+                    LabeledContent("Used on Watch") {
+                        Text(watchTransfer.watchStorageBytes.map(formattedBytes) ?? "Waiting for Watch…")
+                    }
+                    LabeledContent("Available on Watch") {
+                        Text(watchTransfer.watchAvailableBytes.map(formattedBytes) ?? "Waiting for Watch…")
+                    }
+
+                    if watchTransfer.batchTotal > 0 {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ProgressView(value: watchTransfer.batchProgress)
+                            Text("\(watchTransfer.batchCompleted) of \(watchTransfer.batchTotal) transfers finished")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Button {
+                        showWatchLibraryConfirmation = true
+                    } label: {
+                        Label("Send Entire Library", systemImage: "applewatch.radiowaves.left.and.right")
+                    }
+                    .disabled(
+                        library.tracks.isEmpty
+                            || !watchTransfer.canTransfer
+                            || watchTransfer.pendingCount > 0
+                    )
+
+                    if watchTransfer.pendingCount > 0 {
+                        Button(role: .destructive) {
+                            watchTransfer.cancelPendingTransfers()
+                        } label: {
+                            Label("Cancel Pending Transfers", systemImage: "xmark.circle")
+                        }
+                    }
                     if !watchTransfer.isWatchAppInstalled {
                         Text("Install Music Player from the Watch app on your iPhone, then send a track from its context menu or an entire playlist from the playlist menu.")
                             .font(.caption)
@@ -635,6 +671,14 @@ struct SettingsView: View {
             } message: {
                 Text("Your custom photos remain available.")
             }
+            .confirmationDialog("Send Entire Library?", isPresented: $showWatchLibraryConfirmation) {
+                Button("Send \(library.tracks.count) Tracks") {
+                    _ = watchTransfer.send(library.tracks)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(watchTransferConfirmationMessage)
+            }
             .alert(
                 "Apple Watch Transfer",
                 isPresented: Binding(
@@ -655,6 +699,25 @@ struct SettingsView: View {
             #endif
         }
         .preferredColorScheme(.dark)
+    }
+
+    private var librarySizeBytes: Int64 {
+        library.tracks.reduce(0) { total, track in
+            let size = (try? track.fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            return total + Int64(size)
+        }
+    }
+
+    private var watchTransferConfirmationMessage: String {
+        let base = "This queues \(formattedBytes(librarySizeBytes)) for background transfer. Keep the iPhone and Apple Watch nearby until all transfers finish."
+        guard let available = watchTransfer.watchAvailableBytes, librarySizeBytes > available else {
+            return base
+        }
+        return "The library is larger than the reported free space on your Apple Watch. Some transfers may fail. \(base)"
+    }
+
+    private func formattedBytes(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 }
 
