@@ -11,5 +11,8 @@ struct SunoPlayerWatchApp: App {
                 .environmentObject(library)
                 .environmentObject(player)
         }
+        .backgroundTask(.watchConnectivity) {
+            // WatchLibrary owns the WCSession delegate and synchronously stores files.
+        }
     }
 }

@@ -1,6 +1,11 @@
 import Foundation
 import WatchConnectivity
 
+private enum WatchLibraryReceiveError: Error {
+    case invalidMetadata
+    case storeFailed(String)
+}
+
 final class WatchLibrary: NSObject, ObservableObject {
     static let documentsDirectory = FileManager.default.urls(
         for: .documentDirectory,
@@ -34,35 +39,38 @@ final class WatchLibrary: NSObject, ObservableObject {
             try? FileManager.default.removeItem(at: tracks[index].fileURL)
         }
         tracks.remove(atOffsets: offsets)
-        save()
-        publishStorageState()
+        if save() { publishStorageState() }
     }
 
     func clearError() {
         lastError = nil
     }
 
-    private func receive(_ file: WCSessionFile) {
+    /// Moves the incoming file before returning from the WatchConnectivity callback.
+    /// Apple removes the temporary URL as soon as that callback returns.
+    private func receive(_ file: WCSessionFile) -> Result<WatchTrack, WatchLibraryReceiveError> {
         let metadata = file.metadata ?? [:]
         guard
             let rawID = metadata["trackID"] as? String,
             let id = UUID(uuidString: rawID),
             let title = metadata["title"] as? String
         else {
-            lastError = "A received track had invalid metadata."
-            return
+            return .failure(.invalidMetadata)
         }
 
         let ext = (metadata["fileExtension"] as? String).flatMap { $0.isEmpty ? nil : $0 }
             ?? file.fileURL.pathExtension
         let fileName = ext.isEmpty ? id.uuidString : "\(id.uuidString).\(ext)"
         let destination = Self.documentsDirectory.appendingPathComponent(fileName)
+        let staging = Self.documentsDirectory.appendingPathComponent("incoming-\(UUID().uuidString).\(ext)")
 
         do {
+            try FileManager.default.moveItem(at: file.fileURL, to: staging)
             if FileManager.default.fileExists(atPath: destination.path) {
-                try FileManager.default.removeItem(at: destination)
+                try FileManager.default.replaceItemAt(destination, withItemAt: staging)
+            } else {
+                try FileManager.default.moveItem(at: staging, to: destination)
             }
-            try FileManager.default.moveItem(at: file.fileURL, to: destination)
             let track = WatchTrack(
                 id: id,
                 title: title,
@@ -72,13 +80,18 @@ final class WatchLibrary: NSObject, ObservableObject {
                 fileName: fileName,
                 receivedAt: Date()
             )
-            tracks.removeAll { $0.id == id }
-            tracks.insert(track, at: 0)
-            save()
+            return .success(track)
+        } catch {
+            return .failure(.storeFailed("Could not store \(title): \(error.localizedDescription)"))
+        }
+    }
+
+    private func store(_ track: WatchTrack) {
+        tracks.removeAll { $0.id == track.id }
+        tracks.insert(track, at: 0)
+        if save() {
             publishStorageState()
             lastError = nil
-        } catch {
-            lastError = "Could not store \(title): \(error.localizedDescription)"
         }
     }
 
@@ -88,12 +101,15 @@ final class WatchLibrary: NSObject, ObservableObject {
         tracks.removeAll { !FileManager.default.fileExists(atPath: $0.fileURL.path) }
     }
 
-    private func save() {
+    @discardableResult
+    private func save() -> Bool {
         do {
             let data = try JSONEncoder().encode(tracks)
             try data.write(to: saveURL, options: .atomic)
+            return true
         } catch {
             lastError = error.localizedDescription
+            return false
         }
     }
 
@@ -105,7 +121,8 @@ final class WatchLibrary: NSObject, ObservableObject {
         let available = (attributes?[.systemFreeSize] as? NSNumber)?.int64Value ?? 0
         try? WCSession.default.updateApplicationContext([
             "watchStorageBytes": NSNumber(value: storageBytes),
-            "watchAvailableBytes": NSNumber(value: available)
+            "watchAvailableBytes": NSNumber(value: available),
+            "watchTrackIDs": tracks.map { $0.id.uuidString }
         ])
     }
 }
@@ -124,6 +141,14 @@ extension WatchLibrary: WCSessionDelegate {
     }
 
     func session(_ session: WCSession, didReceive file: WCSessionFile) {
-        DispatchQueue.main.async { self.receive(file) }
+        // Move the temporary URL synchronously. Dispatching this move can lose the file.
+        let result = receive(file)
+        DispatchQueue.main.async {
+            switch result {
+            case .success(let track): self.store(track)
+            case .failure(.invalidMetadata): self.lastError = "A received track had invalid metadata."
+            case .failure(.storeFailed(let message)): self.lastError = message
+            }
+        }
     }
 }

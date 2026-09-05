@@ -13,7 +13,12 @@ final class WatchTransferManager: NSObject, ObservableObject {
     @Published private(set) var batchCompleted = 0
     @Published private(set) var watchStorageBytes: Int64?
     @Published private(set) var watchAvailableBytes: Int64?
+    @Published private(set) var watchTrackIDs: Set<UUID> = []
     @Published private(set) var lastError: String?
+
+    private let maxConcurrentTransfers = 8
+    private var scheduledTracks: [Track] = []
+    private var inFlightTrackIDs: Set<UUID> = []
 
     private override init() {
         super.init()
@@ -38,28 +43,7 @@ final class WatchTransferManager: NSObject, ObservableObject {
 
     @discardableResult
     func send(_ track: Track) -> Bool {
-        guard canTransfer else {
-            lastError = "Install Music Player on your paired Apple Watch first."
-            return false
-        }
-        guard !pendingTrackIDs.contains(track.id) else { return false }
-        guard FileManager.default.fileExists(atPath: track.fileURL.path) else {
-            lastError = "The downloaded file for \(track.title) is missing."
-            return false
-        }
-
-        let metadata: [String: Any] = [
-            "trackID": track.id.uuidString,
-            "title": track.title,
-            "artist": track.artist ?? "",
-            "album": track.album ?? "",
-            "duration": track.duration,
-            "fileExtension": track.fileURL.pathExtension
-        ]
-        WCSession.default.transferFile(track.fileURL, metadata: metadata)
-        pendingTrackIDs.insert(track.id)
-        lastError = nil
-        return true
+        send([track]) == 1
     }
 
     @discardableResult
@@ -69,19 +53,27 @@ final class WatchTransferManager: NSObject, ObservableObject {
             return 0
         }
 
-        batchTotal = 0
-        batchCompleted = 0
-        var seen = Set<UUID>()
-        let queued = tracks.reduce(into: 0) { count, track in
-            guard seen.insert(track.id).inserted else { return }
-            if send(track) { count += 1 }
+        let candidates = tracks.filter { track in
+            !watchTrackIDs.contains(track.id)
+                && !pendingTrackIDs.contains(track.id)
+                && FileManager.default.fileExists(atPath: track.fileURL.path)
         }
-        batchTotal = queued
-        return queued
+        var seen = Set<UUID>()
+        let uniqueCandidates = candidates.filter { seen.insert($0.id).inserted }
+        guard !uniqueCandidates.isEmpty else { return 0 }
+        batchTotal = uniqueCandidates.count
+        batchCompleted = 0
+        scheduledTracks.append(contentsOf: uniqueCandidates)
+        pumpTransfers()
+        return uniqueCandidates.count
     }
+
+    func refresh(with tracks: [Track]) -> Int { send(tracks) }
 
     func cancelPendingTransfers() {
         WCSession.default.outstandingFileTransfers.forEach { $0.cancel() }
+        scheduledTracks.removeAll()
+        inFlightTrackIDs.removeAll()
         pendingTrackIDs.removeAll()
         batchTotal = 0
         batchCompleted = 0
@@ -95,11 +87,31 @@ final class WatchTransferManager: NSObject, ObservableObject {
         let context = session.receivedApplicationContext
         let stored = (context["watchStorageBytes"] as? NSNumber)?.int64Value
         let available = (context["watchAvailableBytes"] as? NSNumber)?.int64Value
+        let trackIDs = (context["watchTrackIDs"] as? [String])?.compactMap(UUID.init(uuidString:)) ?? []
         DispatchQueue.main.async {
             self.activationState = session.activationState
             self.isWatchAppInstalled = session.isWatchAppInstalled
             if let stored { self.watchStorageBytes = stored }
             if let available { self.watchAvailableBytes = available }
+            self.watchTrackIDs = Set(trackIDs)
+        }
+    }
+
+    private func pumpTransfers() {
+        while inFlightTrackIDs.count < maxConcurrentTransfers, !scheduledTracks.isEmpty {
+            let track = scheduledTracks.removeFirst()
+            guard !pendingTrackIDs.contains(track.id) else { continue }
+            let metadata: [String: Any] = [
+                "trackID": track.id.uuidString,
+                "title": track.title,
+                "artist": track.artist ?? "",
+                "album": track.album ?? "",
+                "duration": track.duration,
+                "fileExtension": track.fileURL.pathExtension
+            ]
+            WCSession.default.transferFile(track.fileURL, metadata: metadata)
+            pendingTrackIDs.insert(track.id)
+            inFlightTrackIDs.insert(track.id)
         }
     }
 
@@ -108,7 +120,8 @@ final class WatchTransferManager: NSObject, ObservableObject {
             (transfer.file.metadata?["trackID"] as? String).flatMap(UUID.init(uuidString:))
         }
         DispatchQueue.main.async {
-            self.pendingTrackIDs.formUnion(outstandingIDs)
+            self.pendingTrackIDs = Set(outstandingIDs)
+            self.inFlightTrackIDs = Set(outstandingIDs)
             if self.batchTotal == 0, !outstandingIDs.isEmpty {
                 self.batchTotal = outstandingIDs.count
                 self.batchCompleted = 0
@@ -147,9 +160,11 @@ extension WatchTransferManager: WCSessionDelegate {
     func session(_ session: WCSession, didReceiveApplicationContext applicationContext: [String: Any]) {
         let stored = (applicationContext["watchStorageBytes"] as? NSNumber)?.int64Value
         let available = (applicationContext["watchAvailableBytes"] as? NSNumber)?.int64Value
+        let trackIDs = (applicationContext["watchTrackIDs"] as? [String])?.compactMap(UUID.init(uuidString:)) ?? []
         DispatchQueue.main.async {
             self.watchStorageBytes = stored
             self.watchAvailableBytes = available
+            self.watchTrackIDs = Set(trackIDs)
         }
     }
 
@@ -165,6 +180,7 @@ extension WatchTransferManager: WCSessionDelegate {
 
         DispatchQueue.main.async {
             guard self.pendingTrackIDs.remove(trackID) != nil else { return }
+            self.inFlightTrackIDs.remove(trackID)
             if let error {
                 self.lastError = error.localizedDescription
             } else {
@@ -173,6 +189,7 @@ extension WatchTransferManager: WCSessionDelegate {
             if self.batchCompleted < self.batchTotal {
                 self.batchCompleted += 1
             }
+            self.pumpTransfers()
         }
     }
 }

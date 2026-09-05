@@ -607,6 +607,7 @@ struct SettingsView: View {
                     }
                     LabeledContent("Queued transfers", value: "\(watchTransfer.pendingCount)")
                     LabeledContent("Delivered this session", value: "\(watchTransfer.completedTrackIDs.count)")
+                    LabeledContent("Tracks on Watch", value: "\(watchTransfer.watchTrackIDs.count)")
                     LabeledContent("Library size", value: formattedBytes(librarySizeBytes))
                     LabeledContent("Used on Watch") {
                         Text(watchTransfer.watchStorageBytes.map(formattedBytes) ?? "Waiting for Watch…")
@@ -627,13 +628,20 @@ struct SettingsView: View {
                     Button {
                         showWatchLibraryConfirmation = true
                     } label: {
-                        Label("Send Entire Library", systemImage: "applewatch.radiowaves.left.and.right")
+                        Label("Sync Entire Library", systemImage: "applewatch.radiowaves.left.and.right")
                     }
                     .disabled(
                         library.tracks.isEmpty
                             || !watchTransfer.canTransfer
                             || watchTransfer.pendingCount > 0
                     )
+
+                    Button {
+                        _ = watchTransfer.refresh(with: library.tracks)
+                    } label: {
+                        Label("Refresh Apple Watch Library", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(!watchTransfer.canTransfer || watchTransfer.pendingCount > 0)
 
                     if watchTransfer.pendingCount > 0 {
                         Button(role: .destructive) {
