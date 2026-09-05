@@ -156,7 +156,7 @@ extension WatchTransferManager: WCSessionDelegate {
     func session(
         _ session: WCSession,
         didFinish fileTransfer: WCSessionFileTransfer,
-        withError error: Error?
+        error: Error?
     ) {
         guard
             let rawID = fileTransfer.file.metadata?["trackID"] as? String,
