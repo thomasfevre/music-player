@@ -200,6 +200,11 @@ struct LibraryView: View {
                         } label: {
                             Label("Customize Artwork", systemImage: "photo.badge.plus")
                         }
+                        Button {
+                            WatchTransferManager.shared.send(track)
+                        } label: {
+                            Label("Send to Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
+                        }
                         Menu {
                             ForEach(playlists.playlists.filter { $0.smartRule == nil }) { playlist in
                                 Button {

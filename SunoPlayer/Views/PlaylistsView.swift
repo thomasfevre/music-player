@@ -496,6 +496,16 @@ struct PlaylistDetailView: View {
                 } label: {
                     Label("Export M3U", systemImage: "square.and.arrow.up")
                 }
+                Button {
+                    let queuedCount = WatchTransferManager.shared.send(tracks)
+                    operationMessage = tracks.isEmpty
+                        ? "This playlist has no tracks to send."
+                        : queuedCount > 0
+                            ? "\(queuedCount) track\(queuedCount == 1 ? "" : "s") queued for Apple Watch."
+                            : nil
+                } label: {
+                    Label("Send Playlist to Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
+                }
             } label: {
                 Image(systemName: "ellipsis.circle")
             }

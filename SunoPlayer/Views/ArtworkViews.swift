@@ -550,6 +550,7 @@ struct SettingsView: View {
     @State private var crossfadeDuration = PlaybackPreferences.crossfadeDuration
     @State private var showApplyConfirmation = false
     @State private var showListeningStats = false
+    @ObservedObject private var watchTransfer = WatchTransferManager.shared
 
     var body: some View {
         NavigationStack {
@@ -597,6 +598,24 @@ struct SettingsView: View {
                 } footer: {
                     Text("Overlaps the end of one track with the beginning of the next. Short tracks use a shorter transition automatically.")
                 }
+
+                Section {
+                    LabeledContent("Watch app") {
+                        Text(watchTransfer.isWatchAppInstalled ? "Installed" : "Not installed")
+                            .foregroundStyle(watchTransfer.isWatchAppInstalled ? .green : .secondary)
+                    }
+                    LabeledContent("Queued transfers", value: "\(watchTransfer.pendingCount)")
+                    LabeledContent("Delivered this session", value: "\(watchTransfer.completedTrackIDs.count)")
+                    if !watchTransfer.isWatchAppInstalled {
+                        Text("Install Music Player from the Watch app on your iPhone, then send a track from its context menu or an entire playlist from the playlist menu.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Apple Watch")
+                } footer: {
+                    Text("Transferred audio is stored and played directly on your Apple Watch. You may delete the iPhone copy after the transfer finishes.")
+                }
             }
             .navigationTitle("Settings")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -615,6 +634,17 @@ struct SettingsView: View {
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Your custom photos remain available.")
+            }
+            .alert(
+                "Apple Watch Transfer",
+                isPresented: Binding(
+                    get: { watchTransfer.lastError != nil },
+                    set: { if !$0 { watchTransfer.clearError() } }
+                )
+            ) {
+                Button("OK") { watchTransfer.clearError() }
+            } message: {
+                Text(watchTransfer.lastError ?? "")
             }
             #if DEBUG
             .onAppear {
