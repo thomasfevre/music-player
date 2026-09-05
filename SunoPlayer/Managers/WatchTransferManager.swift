@@ -22,6 +22,7 @@ final class WatchTransferManager: NSObject, ObservableObject {
         session.delegate = self
         session.activate()
         refreshState(from: session)
+        syncOutstandingTransfers(from: session)
     }
 
     var canTransfer: Bool {
@@ -101,6 +102,19 @@ final class WatchTransferManager: NSObject, ObservableObject {
             if let available { self.watchAvailableBytes = available }
         }
     }
+
+    private func syncOutstandingTransfers(from session: WCSession) {
+        let outstandingIDs = session.outstandingFileTransfers.compactMap { transfer in
+            (transfer.file.metadata?["trackID"] as? String).flatMap(UUID.init(uuidString:))
+        }
+        DispatchQueue.main.async {
+            self.pendingTrackIDs.formUnion(outstandingIDs)
+            if self.batchTotal == 0, !outstandingIDs.isEmpty {
+                self.batchTotal = outstandingIDs.count
+                self.batchCompleted = 0
+            }
+        }
+    }
 }
 
 extension WatchTransferManager: WCSessionDelegate {
@@ -110,6 +124,7 @@ extension WatchTransferManager: WCSessionDelegate {
         error: Error?
     ) {
         refreshState(from: session)
+        syncOutstandingTransfers(from: session)
         if let error {
             DispatchQueue.main.async { self.lastError = error.localizedDescription }
         }
@@ -122,6 +137,7 @@ extension WatchTransferManager: WCSessionDelegate {
     func sessionDidDeactivate(_ session: WCSession) {
         session.activate()
         refreshState(from: session)
+        syncOutstandingTransfers(from: session)
     }
 
     func sessionWatchStateDidChange(_ session: WCSession) {
@@ -139,8 +155,8 @@ extension WatchTransferManager: WCSessionDelegate {
 
     func session(
         _ session: WCSession,
-        fileTransfer: WCSessionFileTransfer,
-        didFinishWithError error: Error?
+        didFinish fileTransfer: WCSessionFileTransfer,
+        withError error: Error?
     ) {
         guard
             let rawID = fileTransfer.file.metadata?["trackID"] as? String,
