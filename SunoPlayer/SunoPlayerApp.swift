@@ -9,6 +9,7 @@ struct SunoPlayerApp: App {
     private let watchTransfer = WatchTransferManager.shared
 
     init() {
+        _ = WatchOfflineManager.shared
         configureAudioSession()
     }
 
