@@ -44,6 +44,18 @@ final class WatchOfflineTests: XCTestCase {
         XCTAssertEqual(ledger.jobs[0].attempts, 0)
     }
 
+    func testBootstrapReceiptBindsWatchWhenInventoryHasNotArrived() {
+        let watch = UUID(), attempt = UUID(), id = UUID()
+        var ledger = WatchTransferLedger()
+        ledger.jobs = [job(id, phase: .awaitingReceipt, attempt: attempt)]
+
+        ledger.apply(WatchReceipt(attemptID: attempt, trackID: id, watchID: watch, revision: 1, error: nil))
+
+        XCTAssertEqual(ledger.watchID, watch)
+        XCTAssertEqual(ledger.jobs[0].phase, .persisted)
+        XCTAssertTrue(ledger.persistedIDs.contains(id))
+    }
+
     func testCancelledJobsDoNotResumeButLateReceiptIsTruthful() {
         let id = UUID(), watch = UUID(), attempt = UUID()
         var ledger = WatchTransferLedger()

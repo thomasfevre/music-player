@@ -16,6 +16,7 @@ final class WatchOfflineManager: NSObject, ObservableObject, WCSessionDelegate {
     private var state = WatchTransferLedger()
     private var requestID: UUID?
     private var requestDate = Date.distantPast
+    private var inventoryFallbackWorkItem: DispatchWorkItem?
     private var ready = false
     private var storageHealthy = true
     private var timer: DispatchSourceTimer?
@@ -122,6 +123,18 @@ final class WatchOfflineManager: NSObject, ObservableObject, WCSessionDelegate {
         let id = UUID()
         requestID = id
         requestDate = Date()
+        inventoryFallbackWorkItem?.cancel()
+        let fallback = DispatchWorkItem { [weak self] in
+            guard let self, self.requestID == id else { return }
+            self.requestID = nil
+            self.ready = true
+            self.report("Watch inventory timed out; starting a bounded bootstrap transfer.")
+            self.updateConnection()
+            self.publish()
+            self.pump()
+        }
+        inventoryFallbackWorkItem = fallback
+        queue.asyncAfter(deadline: .now() + 12, execute: fallback)
         let message: [String: Any] = [WatchWire.kind: WatchWire.request, "requestID": id.uuidString]
         do { try session.updateApplicationContext(message) }
         catch { report("Inventory request: \(error.localizedDescription)") }
@@ -148,6 +161,8 @@ final class WatchOfflineManager: NSObject, ObservableObject, WCSessionDelegate {
             return delivery.attemptID
         })
         state.reconcile(inventory, outstanding: outstanding)
+        inventoryFallbackWorkItem?.cancel()
+        inventoryFallbackWorkItem = nil
         requestID = nil
         ready = true
         guard save() else { return }
@@ -159,7 +174,7 @@ final class WatchOfflineManager: NSObject, ObservableObject, WCSessionDelegate {
     private func pump() {
         guard storageHealthy, ready, requestID == nil, !state.paused,
               let session, session.activationState == .activated,
-              session.isPaired, session.isWatchAppInstalled, let watchID = state.watchID else { return }
+              session.isPaired, session.isWatchAppInstalled else { return }
         // Awaiting an application receipt occupies a slot too: the receiver applies backpressure.
         var capacity = state.availableSlots(systemTransfers: session.outstandingFileTransfers.count)
         for index in state.jobs.indices where capacity > 0 && state.jobs[index].phase == .queued {
@@ -173,7 +188,7 @@ final class WatchOfflineManager: NSObject, ObservableObject, WCSessionDelegate {
                 let track = OfflineTrack(id: job.id, title: job.title, artist: job.artist,
                                          fileExtension: source.pathExtension.lowercased(), byteCount: Int64(size),
                                          sha256: try WatchWire.checksum(staged))
-                let delivery = TrackDelivery(version: WatchWire.version, attemptID: attempt, targetWatch: watchID, track: track)
+                let delivery = TrackDelivery(version: WatchWire.version, attemptID: attempt, targetWatch: state.watchID, track: track)
                 let metadata: [String: Any] = [WatchWire.kind: WatchWire.track, WatchWire.payload: try JSONEncoder().encode(delivery)]
                 state.jobs[index].phase = .transferring
                 state.jobs[index].attemptID = attempt

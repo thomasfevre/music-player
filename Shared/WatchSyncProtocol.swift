@@ -14,7 +14,7 @@ struct OfflineTrack: Codable, Identifiable, Equatable {
 struct TrackDelivery: Codable {
     let version: Int
     let attemptID: UUID
-    let targetWatch: UUID
+    let targetWatch: UUID?
     let track: OfflineTrack
 }
 
@@ -128,7 +128,8 @@ struct WatchTransferLedger: Codable {
     }
 
     mutating func apply(_ receipt: WatchReceipt) {
-        guard receipt.watchID == watchID else { return }
+        if let watchID, receipt.watchID != watchID { return }
+        if watchID == nil { self.watchID = receipt.watchID }
         guard let index = jobs.firstIndex(where: { $0.id == receipt.trackID && $0.attemptID == receipt.attemptID }) else { return }
         if receipt.error == nil { persistedIDs.insert(receipt.trackID) }
         revision = max(revision, receipt.revision)
