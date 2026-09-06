@@ -38,7 +38,6 @@
 		97273BB47B430A075EF52E6D /* M3UPlaylistCodec.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97874E44250430BCDDE75661 /* M3UPlaylistCodec.swift */; };
 		97F5D5E7BED92941B8170173 /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C352FE32A1AA9982A3230979 /* NowPlayingView.swift */; };
 		9A75AA891F53BCFD73E1AC4F /* PlaybackQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5AF244D4860CE867D838B6BC /* PlaybackQueue.swift */; };
-		9D20DA28D2D0266556894121 /* WatchLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6714316092619EBEA087494E /* WatchLibraryView.swift */; };
 		9F90C3044CF739D84F5620A1 /* PlaybackSessionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1EAFA01CB0B077247059408 /* PlaybackSessionTests.swift */; };
 		A224D9B96E85CB7F0DB37E1F /* AudioPlayerManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3C94D1AA615D5F394895934 /* AudioPlayerManagerTests.swift */; };
 		A659EFBF3B7E62FACD874C55 /* SmartPlaylistEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2E4B614D92555871E2A9D93D /* SmartPlaylistEditorView.swift */; };
@@ -47,7 +46,6 @@
 		ABD55CF18611CDB6BB42727B /* AudioPolicies.swift in Sources */ = {isa = PBXBuildFile; fileRef = 351E895140ACE9D7EB9EE29D /* AudioPolicies.swift */; };
 		AE7EE0F302765F7295026ED0 /* SunoPlayerWatch.app in Embed Watch Content */ = {isa = PBXBuildFile; fileRef = F08E7103131BC65A3E92992D /* SunoPlayerWatch.app */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AEE3A4BAD72DBE526258B088 /* AudioPlayerManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F3BDFE5CA00D1DFC4E2CCB9 /* AudioPlayerManager.swift */; };
-		B552E13B20AD24F39EACA894 /* WatchLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9D0837F69A391EB48DA57EE /* WatchLibrary.swift */; };
 		B977916F9B6784991C6A0C08 /* WatchOfflineSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 27A9E439BEF80787E2C26307 /* WatchOfflineSettingsView.swift */; };
 		BEF146F8B43CC458951A56A2 /* OfflineTrackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D842CBFE3091138FF795E9C6 /* OfflineTrackStore.swift */; };
 		C8049EB8B819CAF691C7A9F6 /* SystemVolumeSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 220F49AAEBE1A64099F32525 /* SystemVolumeSlider.swift */; };
@@ -55,7 +53,6 @@
 		D20D13E058076A0A8521158B /* M3UPlaylistDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B68FECA482C7F2D277B856B5 /* M3UPlaylistDocument.swift */; };
 		D515A6BB346C7E12E2F3AF03 /* TrackQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1AEAEFE076D2A1C6191541F /* TrackQueryTests.swift */; };
 		D6F0CCD59C246A2F9C87EF55 /* OfflineTrackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D842CBFE3091138FF795E9C6 /* OfflineTrackStore.swift */; };
-		DBAF65E09E484270474C139E /* WatchTrack.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03332B24AA633CEBAF8ADE29 /* WatchTrack.swift */; };
 		DC02A6AAA523E6F5273A1899 /* WatchTransferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BED905B8F184E33701D9DD4 /* WatchTransferManager.swift */; };
 		E0FFF7BDE5D8DF931E5BF44A /* TrackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94F338A1830BCCE4B95E0C09 /* TrackTests.swift */; };
 		E32ECD797DA93441D15EACB8 /* ArtworkStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA8B676555385E5FEB1702D9 /* ArtworkStorage.swift */; };
@@ -101,7 +98,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		03332B24AA633CEBAF8ADE29 /* WatchTrack.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTrack.swift; sourceTree = "<group>"; };
 		053A960C6EDBA78F135A947F /* LibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryView.swift; sourceTree = "<group>"; };
 		072E09C0E0C0B798987BF038 /* SunoPlayerTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = SunoPlayerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		0FDDE9A707D2BCFC5E22119C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
@@ -125,7 +121,6 @@
 		5AF244D4860CE867D838B6BC /* PlaybackQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackQueue.swift; sourceTree = "<group>"; };
 		5C3F76B986C916C2D583B0B5 /* PlaybackQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackQueueTests.swift; sourceTree = "<group>"; };
 		5C43EF2FBE966A74C145CF06 /* WatchSyncProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchSyncProtocol.swift; sourceTree = "<group>"; };
-		6714316092619EBEA087494E /* WatchLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLibraryView.swift; sourceTree = "<group>"; };
 		69C478F54A5F62719C8921E6 /* ArtworkStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArtworkStorageTests.swift; sourceTree = "<group>"; };
 		6D4EEF8A9C451F2D243F9E0F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		73F6895BA3645A538D021863 /* TrackRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackRowView.swift; sourceTree = "<group>"; };
@@ -148,7 +143,6 @@
 		B5F50FBD3824E04FABD70066 /* Playlist.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Playlist.swift; sourceTree = "<group>"; };
 		B6748050835512C308136718 /* PlaylistManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistManager.swift; sourceTree = "<group>"; };
 		B68FECA482C7F2D277B856B5 /* M3UPlaylistDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M3UPlaylistDocument.swift; sourceTree = "<group>"; };
-		B9D0837F69A391EB48DA57EE /* WatchLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchLibrary.swift; sourceTree = "<group>"; };
 		BB25B1CF340EFEF097F71E05 /* AddTracksToPlaylistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddTracksToPlaylistView.swift; sourceTree = "<group>"; };
 		BFB30433E52067C0A94E4C13 /* DurationFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DurationFormatter.swift; sourceTree = "<group>"; };
 		C1ADD4AE415DA96493F95C36 /* SunoPlayerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SunoPlayerApp.swift; sourceTree = "<group>"; };
@@ -236,9 +230,6 @@
 				76410C8D1DEB16439F0E2932 /* SunoPlayerWatchApp.swift */,
 				8B82F7F433A17E88F9AE5C23 /* WatchAudioPlayer.swift */,
 				B06A51FBC04D35B20EC6E3BA /* WatchBridge.swift */,
-				B9D0837F69A391EB48DA57EE /* WatchLibrary.swift */,
-				6714316092619EBEA087494E /* WatchLibraryView.swift */,
-				03332B24AA633CEBAF8ADE29 /* WatchTrack.swift */,
 			);
 			path = SunoPlayerWatch;
 			sourceTree = "<group>";
@@ -436,10 +427,7 @@
 				5A1F970A2CA96FD683C42622 /* SunoPlayerWatchApp.swift in Sources */,
 				08893108EC2E1A9D148CCC93 /* WatchAudioPlayer.swift in Sources */,
 				5699E4747DF8686D9120C5CE /* WatchBridge.swift in Sources */,
-				B552E13B20AD24F39EACA894 /* WatchLibrary.swift in Sources */,
-				9D20DA28D2D0266556894121 /* WatchLibraryView.swift in Sources */,
 				369E0F93AD52DFBE3B7FDC6E /* WatchSyncProtocol.swift in Sources */,
-				DBAF65E09E484270474C139E /* WatchTrack.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
