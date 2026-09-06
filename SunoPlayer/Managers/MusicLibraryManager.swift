@@ -56,9 +56,11 @@ final class MusicLibraryManager: ObservableObject {
             if i == 0 {
                 try? Self.silentWAV(seconds: m.4).write(to: Track.documentsDirectory.appendingPathComponent(fileName))
             }
-            demo.append(Track(title: m.0, artist: m.1, album: m.2, genre: m.3,
+            var track = Track(title: m.0, artist: m.1, album: m.2, genre: m.3,
                               fileName: fileName, duration: m.4,
-                              dateImported: Date().addingTimeInterval(Double(-i) * 3600)))
+                              dateImported: Date().addingTimeInterval(Double(-i) * 3600))
+            ArtworkPreferences.apply(to: &track)
+            demo.append(track)
         }
         tracks = demo
     }
@@ -92,13 +94,15 @@ final class MusicLibraryManager: ObservableObject {
         favoriteIDs.contains(track.id)
     }
 
-    func toggleFavorite(_ track: Track) {
+    @discardableResult
+    func toggleFavorite(_ track: Track) -> Bool {
         if favoriteIDs.contains(track.id) {
             favoriteIDs.remove(track.id)
         } else {
             favoriteIDs.insert(track.id)
         }
         saveFavorites()
+        return favoriteIDs.contains(track.id)
     }
 
     // MARK: - Artwork
@@ -127,6 +131,7 @@ final class MusicLibraryManager: ObservableObject {
             let previous = tracks[index]
             tracks[index].customArtworkFileName = fileName
             tracks[index].usesGeneratedArtwork = false
+            tracks[index].artworkStyle = .photo
             guard saveLibrary() else {
                 tracks[index] = previous
                 await Task.detached {
@@ -156,6 +161,7 @@ final class MusicLibraryManager: ObservableObject {
         let previous = tracks[index]
         tracks[index].customArtworkFileName = nil
         tracks[index].usesGeneratedArtwork = true
+        tracks[index].artworkStyle = .color
         tracks[index].gradientHue1 = theme.hue1
         tracks[index].gradientHue2 = theme.hue2
         guard saveLibrary() else {
@@ -166,6 +172,32 @@ final class MusicLibraryManager: ObservableObject {
         return true
     }
 
+    /// Uses listening history as a live, editorial-style track cover.
+    @discardableResult
+    func setListeningPosterArtwork(for track: Track) -> Bool {
+        guard let index = tracks.firstIndex(where: { $0.id == track.id }) else { return false }
+        let previous = tracks[index]
+        tracks[index].usesGeneratedArtwork = false
+        tracks[index].artworkStyle = .listeningPoster
+        guard saveLibrary() else {
+            tracks[index] = previous
+            return false
+        }
+        return true
+    }
+
+    /// Applies the persistent artwork defaults to all library tracks without deleting photos.
+    @discardableResult
+    func applyArtworkPreferencesToAllTracks() -> Bool {
+        let previous = tracks
+        tracks.indices.forEach { ArtworkPreferences.apply(to: &tracks[$0]) }
+        guard saveLibrary() else {
+            tracks = previous
+            return false
+        }
+        return true
+    }
+
     /// Restores the embedded cover, or the app's consistent default gradient if none exists.
     @discardableResult
     func resetArtwork(for track: Track) -> Bool {
@@ -173,6 +205,7 @@ final class MusicLibraryManager: ObservableObject {
         let previous = tracks[index]
         tracks[index].customArtworkFileName = nil
         tracks[index].usesGeneratedArtwork = nil
+        tracks[index].artworkStyle = nil
         tracks[index].gradientHue1 = ArtworkTheme.violet.hue1
         tracks[index].gradientHue2 = ArtworkTheme.violet.hue2
         guard saveLibrary() else {
@@ -215,8 +248,10 @@ final class MusicLibraryManager: ObservableObject {
                 existingNames: existingNames,
                 docDir: docDir
             )
-            tracks.append(contentsOf: outcome.tracks)
-            if !outcome.tracks.isEmpty { saveLibrary() }
+            var importedTracks = outcome.tracks
+            importedTracks.indices.forEach { ArtworkPreferences.apply(to: &importedTracks[$0]) }
+            tracks.append(contentsOf: importedTracks)
+            if !importedTracks.isEmpty { saveLibrary() }
             if !outcome.errors.isEmpty {
                 lastError = outcome.errors.joined(separator: "\n")
             }
@@ -299,6 +334,48 @@ final class MusicLibraryManager: ObservableObject {
         return true
     }
 
+    /// Deletes the local copies of the supplied tracks and returns only the tracks successfully
+    /// removed. Callers use that result to remove matching playlist and playback references.
+    @discardableResult
+    func deleteTracks(_ tracksToDelete: [Track]) -> [Track] {
+        let requestedIDs = Set(tracksToDelete.map(\.id))
+        guard !requestedIDs.isEmpty else { return [] }
+
+        let fm = FileManager.default
+        var deleted: [Track] = []
+        var errors: [String] = []
+
+        for track in tracks where requestedIDs.contains(track.id) {
+            if fm.fileExists(atPath: track.fileURL.path) {
+                do {
+                    try fm.removeItem(at: track.fileURL)
+                } catch {
+                    errors.append("\(track.title): \(error.localizedDescription)")
+                    continue
+                }
+            }
+            ArtworkStorage.removeIfPresent(track.embeddedArtworkURL)
+            ArtworkStorage.removeIfPresent(track.customArtworkURL)
+            ArtworkLoader.remove(track)
+            deleted.append(track)
+        }
+
+        let deletedIDs = Set(deleted.map(\.id))
+        guard !deletedIDs.isEmpty else {
+            if !errors.isEmpty { lastError = errors.joined(separator: "\n") }
+            return []
+        }
+
+        tracks.removeAll { deletedIDs.contains($0.id) }
+        if !favoriteIDs.isDisjoint(with: deletedIDs) {
+            favoriteIDs.subtract(deletedIDs)
+            saveFavorites()
+        }
+        saveLibrary()
+        if !errors.isEmpty { lastError = errors.joined(separator: "\n") }
+        return deleted
+    }
+
     func clearError() {
         lastError = nil
     }
@@ -310,7 +387,7 @@ final class MusicLibraryManager: ObservableObject {
     /// Libraries created by older app versions do not contain album or genre fields.
     /// Fill those values lazily from the existing local files without blocking launch.
     private func refreshMissingMetadata() {
-        let currentMetadataVersion = 1
+        let currentMetadataVersion = 2
         let candidates = tracks.filter { $0.metadataScanVersion != currentMetadataVersion }
         guard !candidates.isEmpty else { return }
 
@@ -323,6 +400,14 @@ final class MusicLibraryManager: ObservableObject {
                 )
                 guard let index = tracks.firstIndex(where: { $0.id == track.id }) else { continue }
 
+                // Version 1 used the complete file name as the title when an MP3 had no tags.
+                // Version 2 also recovers `Artist - Title` without overwriting a tagged title.
+                if tracks[index].title == Self.cleanFileName(track.fileName) {
+                    tracks[index].title = metadata.title
+                }
+                if tracks[index].artist == nil, let artist = metadata.artist {
+                    tracks[index].artist = artist
+                }
                 if tracks[index].album == nil, let album = metadata.album {
                     tracks[index].album = album
                 }
@@ -353,8 +438,9 @@ final class MusicLibraryManager: ObservableObject {
         let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: true])
 
         var duration: TimeInterval = 0
-        var title = cleanFileName(fallbackName)
-        var artist: String? = nil
+        let fileNameMetadata = TrackFileNameMetadata.parse(fallbackName)
+        var title = fileNameMetadata.title
+        var artist = fileNameMetadata.artist
         var album: String? = nil
         var genre: String? = nil
         var artwork: Data? = nil
@@ -382,8 +468,9 @@ final class MusicLibraryManager: ObservableObject {
                 title = value
             }
             if item.commonKey == .commonKeyArtist,
-               let value = try? await item.load(.stringValue) {
-                artist = value.isEmpty ? nil : value
+               let value = try? await item.load(.stringValue),
+               !value.isEmpty {
+                artist = value
             }
             if item.identifier == .commonIdentifierAlbumName,
                let value = try? await item.load(.stringValue) {

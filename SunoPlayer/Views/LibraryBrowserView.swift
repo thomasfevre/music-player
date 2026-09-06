@@ -8,7 +8,7 @@ struct LibraryBrowserView: View {
     @State private var category: Category = .recent
 
     enum Category: String, CaseIterable, Identifiable {
-        case recent = "Recent"
+        case recent = "Recently Played"
         case artists = "Artists"
         case albums = "Albums"
         case genres = "Genres"
@@ -62,19 +62,47 @@ struct LibraryBrowserView: View {
     }
 
     private var recentTracks: [Track] {
-        Array(library.tracks.sorted { $0.dateImported > $1.dateImported }.prefix(100))
+        let ids = player.listeningHistory.history.recentEvents
+            .filter { $0.kind == .playback }
+            .reversed()
+            .reduce(into: [UUID]()) { result, event in
+                if !result.contains(event.trackID) { result.append(event.trackID) }
+            }
+        let byID = Dictionary(uniqueKeysWithValues: library.tracks.map { ($0.id, $0) })
+        let currentID = player.currentTrack?.id
+        return ([currentID].compactMap { $0 } + ids).reduce(into: [Track]()) { result, id in
+            guard let track = byID[id], !result.contains(where: { $0.id == id }) else { return }
+            result.append(track)
+        }
     }
 
     private var groups: [(name: String, tracks: [Track])] {
-        let grouped = Dictionary(grouping: library.tracks) { track in
+        var grouped: [String: (name: String, tracks: [Track])] = [:]
+
+        for track in library.tracks {
+            let values: [String]
             switch category {
-            case .artists: return track.displayArtist
-            case .albums: return track.displayAlbum
-            case .genres: return track.displayGenre
-            case .recent: return ""
+            case .artists:
+                let components = TrackBrowseMetadata.components(from: track.artist)
+                values = components.isEmpty ? [track.displayArtist] : components
+            case .albums:
+                values = [track.displayAlbum]
+            case .genres:
+                let components = TrackBrowseMetadata.components(from: track.genre)
+                values = components.isEmpty ? [track.displayGenre] : components
+            case .recent:
+                values = []
+            }
+
+            for value in values {
+                let key = value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                var group = grouped[key] ?? (name: value, tracks: [])
+                group.tracks.append(track)
+                grouped[key] = group
             }
         }
-        return grouped.map { (name: $0.key, tracks: $0.value.sorted { $0.title < $1.title }) }
+
+        return grouped.values.map { (name: $0.name, tracks: $0.tracks.sorted { $0.title < $1.title }) }
             .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
@@ -87,7 +115,7 @@ struct LibraryBrowserView: View {
         )
         .listRowBackground(Color.clear)
         .contentShape(Rectangle())
-        .onTapGesture { player.play(track, in: queue) }
+        .onTapGesture { player.play(track, in: queue, source: .browser) }
     }
 }
 
@@ -119,7 +147,7 @@ private struct LibraryCollectionView: View {
             )
             .listRowBackground(Color.clear)
             .contentShape(Rectangle())
-            .onTapGesture { player.play(track, in: tracks) }
+            .onTapGesture { player.play(track, in: tracks, source: .browser) }
         }
         .scrollContentBackground(.hidden)
         .background(Color.black)

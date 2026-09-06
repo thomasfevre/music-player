@@ -15,6 +15,7 @@ struct PlaylistsView: View {
     @State private var path: [UUID] = []
     @State private var importMessage: String?
     @State private var artworkPlaylist: Playlist?
+    @State private var showNowPlaying = false
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -101,6 +102,21 @@ struct PlaylistsView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .safeAreaInset(edge: .bottom) {
+            Color.clear.frame(height: player.currentTrack == nil ? 0 : 76)
+        }
+        .overlay(alignment: .bottom) {
+            if player.currentTrack != nil {
+                MiniPlayerView(showNowPlaying: $showNowPlaying)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .sheet(isPresented: $showNowPlaying) {
+            NowPlayingView(isPresented: $showNowPlaying)
+                .environmentObject(library)
+                .environmentObject(player)
+                .environmentObject(playlists)
+        }
     }
 
     private var list: some View {
@@ -294,6 +310,7 @@ struct PlaylistDetailView: View {
         .sheet(item: $artworkTrack) { track in
             TrackArtworkEditorView(trackID: track.id)
                 .environmentObject(library)
+                .environmentObject(player)
         }
         .alert("Rename Playlist", isPresented: $showRenameAlert) {
             TextField("Name", text: $renamedName)
@@ -353,7 +370,7 @@ struct PlaylistDetailView: View {
                     if isSelecting {
                         toggleSelection(track.id)
                     } else {
-                        player.play(track, in: visibleTracks)
+                        player.play(track, in: visibleTracks, source: .playlist)
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     }
                 }
@@ -431,7 +448,7 @@ struct PlaylistDetailView: View {
         ToolbarItem(placement: .topBarTrailing) {
             Button {
                 guard let first = visibleTracks.first else { return }
-                player.play(first, in: visibleTracks)
+                player.play(first, in: visibleTracks, source: .playlist)
             } label: {
                 Image(systemName: "play.fill")
             }
@@ -478,6 +495,16 @@ struct PlaylistDetailView: View {
                     showExporter = true
                 } label: {
                     Label("Export M3U", systemImage: "square.and.arrow.up")
+                }
+                Button {
+                    let queuedCount = WatchTransferManager.shared.send(tracks)
+                    operationMessage = tracks.isEmpty
+                        ? "This playlist has no tracks to send."
+                        : queuedCount > 0
+                            ? "\(queuedCount) track\(queuedCount == 1 ? "" : "s") queued for Apple Watch."
+                            : nil
+                } label: {
+                    Label("Send Playlist to Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")

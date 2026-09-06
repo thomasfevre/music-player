@@ -10,36 +10,132 @@ struct TrackArtworkView: View {
     var symbolName = "music.note"
 
     @StateObject private var artwork = ArtworkLoader()
+    @EnvironmentObject private var player: AudioPlayerManager
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: cornerRadius)
-                .fill(
-                    LinearGradient(
-                        colors: track.gradientColors,
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
+        Group {
+            if track.usesListeningPoster {
+                TrackListeningPosterArtworkView(
+                    track: track,
+                    listeningHistory: player.listeningHistory,
+                    size: size,
+                    cornerRadius: cornerRadius
                 )
-
-            if let image = artwork.image {
-                Image(uiImage: image)
-                    .resizable()
-                    .scaledToFill()
             } else {
-                Image(systemName: symbolName)
-                    .font(.system(size: max(16, size * 0.32), weight: .medium))
-                    .foregroundStyle(.white.opacity(0.86))
+                ZStack {
+                    RoundedRectangle(cornerRadius: cornerRadius)
+                        .fill(
+                            LinearGradient(
+                                colors: track.gradientColors,
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+
+                    if let image = artwork.image {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Image(systemName: symbolName)
+                            .font(.system(size: max(16, size * 0.32), weight: .medium))
+                            .foregroundStyle(.white.opacity(0.86))
+                    }
+                }
+                .frame(width: size, height: size)
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
             }
         }
-        .frame(width: size, height: size)
-        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
         .contentShape(RoundedRectangle(cornerRadius: cornerRadius))
         .onAppear { artwork.load(for: track) }
         .onChange(of: track.preferredArtworkFileName) {
             artwork.load(for: track)
         }
         .accessibilityHidden(true)
+    }
+}
+
+/// A live editorial cover that turns existing listening history into a recognisable visual.
+struct TrackListeningPosterArtworkView: View {
+    let track: Track
+    @ObservedObject var listeningHistory: ListeningHistoryStore
+    var size: CGFloat
+    var cornerRadius: CGFloat
+    @AppStorage("statsCoverMetric") private var statsCoverMetricRaw = "plays"
+
+    private var isCompact: Bool { size < 90 }
+    private var summary: TrackListeningSummary { listeningHistory.summary(for: track.id) }
+    private var plays: Int { summary.playCount }
+    private var listenedMinutes: Int { Int(summary.totalListenedSeconds / 60) }
+    private var headline: String {
+        switch StatsCoverMetric(rawValue: statsCoverMetricRaw) ?? .plays {
+        case .plays: return plays == 0 ? "NEW" : "\(plays)"
+        case .minutes: return listenedMinutes == 0 ? "NEW" : "\(listenedMinutes)"
+        case .skips: return "\(summary.earlySkipCount + summary.lateSkipCount)"
+        }
+    }
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            LinearGradient(
+                colors: track.gradientColors,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+
+            Rectangle()
+                .fill(.black.opacity(0.16))
+
+            VStack(alignment: .leading, spacing: isCompact ? 2 : 9) {
+                if !isCompact {
+                    Text(plays == 0 ? "NEW IN YOUR LIBRARY" : "YOUR ROTATION")
+                        .font(.system(size: size * 0.042, weight: .bold, design: .rounded))
+                        .tracking(size * 0.008)
+                        .foregroundStyle(.white.opacity(0.76))
+                }
+
+                Spacer(minLength: 0)
+
+                Text(headline)
+                    .font(.system(size: size * (isCompact ? 0.55 : 0.42), weight: .black, design: .rounded))
+                    .minimumScaleFactor(0.45)
+                    .foregroundStyle(.white)
+
+                if !isCompact {
+                    Rectangle()
+                        .fill(.white.opacity(0.6))
+                        .frame(height: 1)
+
+                    HStack(spacing: 12) {
+                        posterMetric("\(listenedMinutes) MIN", label: "LISTENED")
+                        posterMetric("\(summary.earlySkipCount + summary.lateSkipCount)", label: "SKIPS")
+                    }
+
+                    Spacer(minLength: 0)
+
+                    Text(track.displayArtist.uppercased())
+                        .font(.system(size: size * 0.038, weight: .bold, design: .rounded))
+                        .lineLimit(1)
+                    Text(track.title.uppercased())
+                        .font(.system(size: size * 0.052, weight: .heavy, design: .rounded))
+                        .lineLimit(2)
+                }
+            }
+            .padding(size * (isCompact ? 0.13 : 0.09))
+        }
+        .frame(width: size, height: size)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+        .accessibilityLabel("Listening poster for \(track.title), \(plays) plays")
+    }
+
+    private func posterMetric(_ value: String, label: String) -> some View {
+        VStack(alignment: .leading, spacing: 1) {
+            Text(value)
+                .font(.system(size: size * 0.05, weight: .heavy, design: .rounded))
+            Text(label)
+                .font(.system(size: size * 0.027, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(0.7))
+        }
     }
 }
 
@@ -102,6 +198,7 @@ struct TrackArtworkEditorView: View {
     let trackID: UUID
 
     @EnvironmentObject private var library: MusicLibraryManager
+    @EnvironmentObject private var player: AudioPlayerManager
     @Environment(\.dismiss) private var dismiss
     @State private var previewVersion = 0
     @State private var isImportingPhoto = false
@@ -138,6 +235,35 @@ struct TrackArtworkEditorView: View {
                                     previewVersion += 1
                                 }
                             }
+                            .disabled(isImportingPhoto)
+                        }
+
+                        VStack(alignment: .leading, spacing: 12) {
+                            sectionTitle("Stats Cover")
+                            Button {
+                                if library.setListeningPosterArtwork(for: track) {
+                                    previewVersion += 1
+                                }
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: "chart.bar.xaxis")
+                                        .font(.title3.weight(.semibold))
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(track.usesListeningPoster ? "Listening Poster Selected" : "Use Listening Poster")
+                                            .font(.headline)
+                                        Text("Shows plays, listening time and skips")
+                                            .font(.subheadline)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if track.usesListeningPoster {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(.tint)
+                                    }
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .buttonStyle(.bordered)
                             .disabled(isImportingPhoto)
                         }
 
@@ -408,5 +534,245 @@ private func themeGrid(action: @escaping (ArtworkTheme) -> Void) -> some View {
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+// MARK: - Settings and listening metrics
+
+struct SettingsView: View {
+    @EnvironmentObject private var library: MusicLibraryManager
+    @EnvironmentObject private var player: AudioPlayerManager
+    @Environment(\.dismiss) private var dismiss
+    @State private var defaultStyle = ArtworkPreferences.defaultStyle
+    @State private var usesUniqueColors = ArtworkPreferences.usesUniqueColors
+    @State private var showsListeningBadges = ArtworkPreferences.showsListeningBadges
+    @State private var statsCoverMetric = ArtworkPreferences.statsCoverMetric
+    @State private var crossfadeDuration = PlaybackPreferences.crossfadeDuration
+    @State private var showApplyConfirmation = false
+    @State private var showListeningStats = false
+    @State private var showWatchLibraryConfirmation = false
+    @ObservedObject private var watchTransfer = WatchTransferManager.shared
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Picker("New track artwork", selection: $defaultStyle) {
+                        ForEach(DefaultTrackArtworkStyle.allCases) { style in
+                            Text(style.title).tag(style)
+                        }
+                    }
+                    Toggle("Use a stable unique color per generated cover", isOn: $usesUniqueColors)
+                    Picker("Stats Poster headline", selection: $statsCoverMetric) {
+                        ForEach(StatsCoverMetric.allCases) { Text($0.title).tag($0) }
+                    }
+                    Button("Apply these settings to all tracks") { showApplyConfirmation = true }
+                } header: {
+                    Text("Artwork")
+                } footer: {
+                    Text("Photos are kept safely. This only changes the displayed artwork style.")
+                }
+
+                Section("Listening") {
+                    Toggle("Show listening badges in lists", isOn: $showsListeningBadges)
+                    NavigationLink {
+                        ListeningStatsView()
+                            .environmentObject(library)
+                            .environmentObject(player)
+                    } label: {
+                        Label("Listening Stats", systemImage: "chart.bar.xaxis")
+                    }
+                }
+
+                Section {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("Crossfade")
+                            Spacer()
+                            Text(crossfadeDuration == 0 ? "Off" : "\(Int(crossfadeDuration)) sec")
+                                .foregroundStyle(.secondary)
+                        }
+                        Slider(value: $crossfadeDuration, in: 0...8, step: 1)
+                    }
+                } header: {
+                    Text("Playback")
+                } footer: {
+                    Text("Overlaps the end of one track with the beginning of the next. Short tracks use a shorter transition automatically.")
+                }
+
+                Section {
+                    LabeledContent("Watch app") {
+                        Text(watchTransfer.isWatchAppInstalled ? "Installed" : "Not installed")
+                            .foregroundStyle(watchTransfer.isWatchAppInstalled ? .green : .secondary)
+                    }
+                    LabeledContent("Queued transfers", value: "\(watchTransfer.pendingCount)")
+                    LabeledContent("Delivered this session", value: "\(watchTransfer.completedTrackIDs.count)")
+                    LabeledContent("Tracks on Watch", value: "\(watchTransfer.watchTrackIDs.count)")
+                    LabeledContent("Library size", value: formattedBytes(librarySizeBytes))
+                    LabeledContent("Used on Watch") {
+                        Text(watchTransfer.watchStorageBytes.map(formattedBytes) ?? "Waiting for Watch…")
+                    }
+                    LabeledContent("Available on Watch") {
+                        Text(watchTransfer.watchAvailableBytes.map(formattedBytes) ?? "Waiting for Watch…")
+                    }
+
+                    if watchTransfer.batchTotal > 0 {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ProgressView(value: watchTransfer.batchProgress)
+                            Text("\(watchTransfer.batchCompleted) of \(watchTransfer.batchTotal) transfers finished")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    Button {
+                        showWatchLibraryConfirmation = true
+                    } label: {
+                        Label("Sync Entire Library", systemImage: "applewatch.radiowaves.left.and.right")
+                    }
+                    .disabled(
+                        library.tracks.isEmpty
+                            || !watchTransfer.canTransfer
+                            || watchTransfer.pendingCount > 0
+                    )
+
+                    Button {
+                        _ = watchTransfer.refresh(with: library.tracks)
+                    } label: {
+                        Label("Refresh Apple Watch Library", systemImage: "arrow.clockwise")
+                    }
+                    .disabled(!watchTransfer.canTransfer || watchTransfer.pendingCount > 0)
+
+                    if watchTransfer.pendingCount > 0 {
+                        Button(role: .destructive) {
+                            watchTransfer.cancelPendingTransfers()
+                        } label: {
+                            Label("Cancel Pending Transfers", systemImage: "xmark.circle")
+                        }
+                    }
+                    if !watchTransfer.isWatchAppInstalled {
+                        Text("Install Music Player from the Watch app on your iPhone, then send a track from its context menu or an entire playlist from the playlist menu.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Apple Watch")
+                } footer: {
+                    Text("Transferred audio is stored and played directly on your Apple Watch. You may delete the iPhone copy after the transfer finishes.")
+                }
+            }
+            .navigationTitle("Settings")
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .navigationDestination(isPresented: $showListeningStats) {
+                ListeningStatsView()
+                    .environmentObject(library)
+                    .environmentObject(player)
+            }
+            .onChange(of: defaultStyle) { ArtworkPreferences.defaultStyle = defaultStyle }
+            .onChange(of: usesUniqueColors) { ArtworkPreferences.usesUniqueColors = usesUniqueColors }
+            .onChange(of: showsListeningBadges) { ArtworkPreferences.showsListeningBadges = showsListeningBadges }
+            .onChange(of: statsCoverMetric) { ArtworkPreferences.statsCoverMetric = statsCoverMetric }
+            .onChange(of: crossfadeDuration) { PlaybackPreferences.crossfadeDuration = crossfadeDuration }
+            .confirmationDialog("Apply Artwork Settings?", isPresented: $showApplyConfirmation) {
+                Button("Apply to \(library.tracks.count) Tracks") { _ = library.applyArtworkPreferencesToAllTracks() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Your custom photos remain available.")
+            }
+            .confirmationDialog("Send Entire Library?", isPresented: $showWatchLibraryConfirmation) {
+                Button("Send \(library.tracks.count) Tracks") {
+                    _ = watchTransfer.send(library.tracks)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text(watchTransferConfirmationMessage)
+            }
+            .alert(
+                "Apple Watch Transfer",
+                isPresented: Binding(
+                    get: { watchTransfer.lastError != nil },
+                    set: { if !$0 { watchTransfer.clearError() } }
+                )
+            ) {
+                Button("OK") { watchTransfer.clearError() }
+            } message: {
+                Text(watchTransfer.lastError ?? "")
+            }
+            #if DEBUG
+            .onAppear {
+                if ProcessInfo.processInfo.arguments.contains("UITEST_STATS") {
+                    showListeningStats = true
+                }
+            }
+            #endif
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private var librarySizeBytes: Int64 {
+        library.tracks.reduce(0) { total, track in
+            let size = (try? track.fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+            return total + Int64(size)
+        }
+    }
+
+    private var watchTransferConfirmationMessage: String {
+        let base = "This queues \(formattedBytes(librarySizeBytes)) for background transfer. Keep the iPhone and Apple Watch nearby until all transfers finish."
+        guard let available = watchTransfer.watchAvailableBytes, librarySizeBytes > available else {
+            return base
+        }
+        return "The library is larger than the reported free space on your Apple Watch. Some transfers may fail. \(base)"
+    }
+
+    private func formattedBytes(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
+    }
+}
+
+struct ListeningStatsView: View {
+    @EnvironmentObject private var library: MusicLibraryManager
+    @EnvironmentObject private var player: AudioPlayerManager
+
+    private var summaries: [UUID: TrackListeningSummary] { player.listeningHistory.history.summaries }
+    private var totalPlays: Int { summaries.values.reduce(0) { $0 + $1.playCount } }
+    private var totalMinutes: Int { Int(summaries.values.reduce(0) { $0 + $1.totalListenedSeconds } / 60) }
+    private var totalSkips: Int { summaries.values.reduce(0) { $0 + $1.earlySkipCount + $1.lateSkipCount } }
+    private var topTracks: [(track: Track, summary: TrackListeningSummary)] {
+        library.tracks.compactMap { track in
+            guard let summary = summaries[track.id], summary.playCount > 0 else { return nil }
+            return (track, summary)
+        }
+        .sorted { $0.summary.playCount > $1.summary.playCount }
+        .prefix(10)
+        .map { $0 }
+    }
+
+    var body: some View {
+        List {
+            Section("Your listening") {
+                LabeledContent("Plays", value: "\(totalPlays)")
+                LabeledContent("Listening time", value: "\(totalMinutes) min")
+                LabeledContent("Skips", value: "\(totalSkips)")
+            }
+            Section("Most played") {
+                if topTracks.isEmpty {
+                    Text("Play a few tracks to see your listening patterns here.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(topTracks, id: \.track.id) { item in
+                        HStack(spacing: 12) {
+                            TrackArtworkView(track: item.track, size: 38, cornerRadius: 9)
+                            VStack(alignment: .leading) {
+                                Text(item.track.title).lineLimit(1)
+                                Text(item.track.displayArtist).font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Text("\(item.summary.playCount)").font(.headline.monospacedDigit())
+                        }
+                    }
+                }
+            }
+        }
+        .navigationTitle("Listening Stats")
     }
 }

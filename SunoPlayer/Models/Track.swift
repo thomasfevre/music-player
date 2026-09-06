@@ -2,12 +2,63 @@ import Foundation
 import SwiftUI
 
 // MARK: - Sort Order
-enum SortOrder: String, CaseIterable, Identifiable {
+enum SortOrder: String, CaseIterable, Identifiable, Codable {
     case newest = "Newest"
     case oldest = "Oldest"
     case title = "Title"
 
     var id: String { rawValue }
+}
+
+enum TrackArtworkStyle: String, Codable, Equatable {
+    case photo
+    case color
+    case listeningPoster
+}
+
+/// Metadata that can be recovered safely from the common `Artist - Title.mp3` naming pattern.
+/// This is a fallback only: embedded audio tags always take precedence when they are present.
+enum TrackFileNameMetadata {
+    static func parse(_ fileName: String) -> (title: String, artist: String?) {
+        let baseName = (fileName as NSString).deletingPathExtension
+        let cleaned = baseName
+            .replacingOccurrences(of: "_", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let separator = cleaned.range(of: " - ") else {
+            return (cleaned, nil)
+        }
+
+        let artist = String(cleaned[..<separator.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let title = String(cleaned[separator.upperBound...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !artist.isEmpty, !title.isEmpty else {
+            return (cleaned, nil)
+        }
+        return (title, artist)
+    }
+}
+
+/// Normalises multi-value audio tags for browse collections. A single tag such as
+/// "Alesso, Katy Perry" contributes one entry to Alesso and one to Katy Perry.
+enum TrackBrowseMetadata {
+    static func components(from value: String?) -> [String] {
+        guard let value else { return [] }
+
+        let separators = CharacterSet(charactersIn: ",;")
+        var seen = Set<String>()
+        return value
+            .components(separatedBy: separators)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .filter {
+                seen.insert(
+                    $0.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: .current)
+                ).inserted
+            }
+    }
 }
 
 // MARK: - Repeat Mode
@@ -55,6 +106,10 @@ struct Track: Identifiable, Codable, Equatable {
     /// Optional for backward-compatible decoding of existing libraries.
     var usesGeneratedArtwork: Bool?
 
+    /// Explicit artwork choice. Kept optional so libraries saved before artwork styles continue
+    /// to decode, with `usesGeneratedArtwork` used as the legacy color-style fallback.
+    var artworkStyle: TrackArtworkStyle?
+
     /// Version of the metadata extraction pass applied to this track.
     /// Optional so libraries saved before metadata browsing can be backfilled once.
     var metadataScanVersion: Int?
@@ -82,11 +137,24 @@ struct Track: Identifiable, Codable, Equatable {
         Self.documentsDirectory.appendingPathComponent(fileName)
     }
 
-    /// The custom cover takes precedence over artwork embedded in the audio file.
+    var resolvedArtworkStyle: TrackArtworkStyle? {
+        artworkStyle ?? (usesGeneratedArtwork == true ? .color : nil)
+    }
+
+    var usesListeningPoster: Bool {
+        resolvedArtworkStyle == .listeningPoster
+    }
+
+    /// The selected photo takes precedence over artwork embedded in the audio file.
     var preferredArtworkFileName: String? {
-        if let customArtworkFileName { return customArtworkFileName }
-        if usesGeneratedArtwork == true { return nil }
-        return artworkFileName
+        switch resolvedArtworkStyle {
+        case .color, .listeningPoster:
+            return nil
+        case .photo:
+            return customArtworkFileName ?? artworkFileName
+        case nil:
+            return customArtworkFileName ?? artworkFileName
+        }
     }
 
     /// Resolved URL of the artwork currently shown by the app, if any.
@@ -117,8 +185,12 @@ struct Track: Identifiable, Codable, Equatable {
         genre ?? "Unknown Genre"
     }
 
+    func wasImported(onOrAfter date: Date) -> Bool {
+        dateImported >= date
+    }
+
     var displayGradientHues: (Double, Double) {
-        usesGeneratedArtwork == true
+        resolvedArtworkStyle == .color || resolvedArtworkStyle == .listeningPoster
             ? (gradientHue1, gradientHue2)
             : (ArtworkTheme.violet.hue1, ArtworkTheme.violet.hue2)
     }
@@ -144,6 +216,7 @@ struct Track: Identifiable, Codable, Equatable {
         artworkFileName: String? = nil,
         customArtworkFileName: String? = nil,
         usesGeneratedArtwork: Bool? = nil,
+        artworkStyle: TrackArtworkStyle? = nil,
         metadataScanVersion: Int? = 1,
         gradientHue1: Double? = nil,
         gradientHue2: Double? = nil
@@ -159,6 +232,7 @@ struct Track: Identifiable, Codable, Equatable {
         self.artworkFileName = artworkFileName
         self.customArtworkFileName = customArtworkFileName
         self.usesGeneratedArtwork = usesGeneratedArtwork
+        self.artworkStyle = artworkStyle
         self.metadataScanVersion = metadataScanVersion
 
         // Derive gradient hues from a stable file-name hash for visual consistency.

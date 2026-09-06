@@ -15,7 +15,14 @@ struct LibraryView: View {
     @State private var showBrowser = false
     @State private var showWatchOffline = false
     @State private var pendingDeletion: Track?
+    @State private var showRecentImportDeletion = false
+    @State private var recentImportCutoff = Date()
+    @State private var showRecentImportConfirmation = false
     @State private var artworkTrack: Track?
+    @State private var showSettings = false
+    @State private var savedFilterName = ""
+    @State private var savedFilters: [SavedLibraryFilter] = SavedLibraryFilter.load()
+    @State private var showSaveFilter = false
     @FocusState private var isSearchFocused: Bool
 
     // Bottom padding when mini player is visible
@@ -71,6 +78,30 @@ struct LibraryView: View {
             .sheet(item: $artworkTrack) { track in
                 TrackArtworkEditorView(trackID: track.id)
                     .environmentObject(library)
+                    .environmentObject(player)
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+                    .environmentObject(library)
+                    .environmentObject(player)
+            }
+            .sheet(isPresented: $showRecentImportDeletion) {
+                recentImportDeletionSheet
+            }
+            .alert("Save Filter", isPresented: $showSaveFilter) {
+                TextField("Name", text: $savedFilterName)
+                Button("Cancel", role: .cancel) {}
+                Button("Save") {
+                    savedFilters.append(
+                        SavedLibraryFilter(
+                            name: savedFilterName,
+                            query: library.searchText,
+                            favoritesOnly: library.showFavoritesOnly,
+                            sortOrder: library.sortOrder
+                        )
+                    )
+                    SavedLibraryFilter.save(savedFilters)
+                }
             }
             .alert(item: $pendingDeletion) { track in
                 Alert(
@@ -91,13 +122,32 @@ struct LibraryView: View {
             } message: {
                 Text(library.lastError ?? "")
             }
+            .confirmationDialog(
+                "Delete \(recentImportCandidates.count) Downloaded Tracks?",
+                isPresented: $showRecentImportConfirmation,
+                titleVisibility: .visible
+            ) {
+                Button("Delete \(recentImportCandidates.count) Tracks", role: .destructive) {
+                    deleteRecentImportCandidates()
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("These local files, their artwork, and their playlist entries will be permanently removed from this iPhone. Your original files in iCloud Drive are not affected.")
+            }
+            #if DEBUG
+            .onAppear {
+                if ProcessInfo.processInfo.arguments.contains("UITEST_SETTINGS") ||
+                    ProcessInfo.processInfo.arguments.contains("UITEST_STATS") {
+                    showSettings = true
+                }
+            }
+            #endif
         }
     }
 
     // MARK: Track List
     private var trackList: some View {
-        ScrollView {
-            LazyVStack(spacing: 4) {
+        List {
                 ForEach(library.displayedTracks) { track in
                     TrackRowView(
                         track: track,
@@ -106,9 +156,34 @@ struct LibraryView: View {
                         isFavorite: library.isFavorite(track)
                     )
                     .onTapGesture {
-                        player.play(track, in: library.displayedTracks)
+                        player.play(track, in: library.displayedTracks, source: .library)
                         showNowPlaying = true
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                        Button {
+                            let favorite = library.toggleFavorite(track)
+                            player.recordFavoriteChange(for: track.id, isFavorite: favorite)
+                        } label: {
+                            Label(library.isFavorite(track) ? "Unfavorite" : "Favorite", systemImage: "heart")
+                        }
+                        .tint(.pink)
+                    }
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        Button {
+                            player.enqueueNext(track)
+                        } label: {
+                            Label("Play Next", systemImage: "text.insert")
+                        }
+                        .tint(.blue)
+                        if let playlist = playlists.lastUsedManualPlaylist {
+                            Button {
+                                playlists.addTrack(track.id, to: playlist)
+                            } label: {
+                                Label("Add to \(playlist.name)", systemImage: "text.badge.plus")
+                            }
+                            .tint(.purple)
+                        }
                     }
                     .contextMenu {
                         Button { WatchOfflineManager.shared.send([track]) } label: {
@@ -125,7 +200,8 @@ struct LibraryView: View {
                             Label("Play Later", systemImage: "text.append")
                         }
                         Button {
-                            library.toggleFavorite(track)
+                            let isFavorite = library.toggleFavorite(track)
+                            player.recordFavoriteChange(for: track.id, isFavorite: isFavorite)
                         } label: {
                             let fav = library.isFavorite(track)
                             Label(fav ? "Remove from Favorites" : "Add to Favorites",
@@ -135,6 +211,11 @@ struct LibraryView: View {
                             artworkTrack = track
                         } label: {
                             Label("Customize Artwork", systemImage: "photo.badge.plus")
+                        }
+                        Button {
+                            WatchTransferManager.shared.send(track)
+                        } label: {
+                            Label("Send to Apple Watch", systemImage: "applewatch.radiowaves.left.and.right")
                         }
                         Menu {
                             ForEach(playlists.playlists.filter { $0.smartRule == nil }) { playlist in
@@ -165,12 +246,13 @@ struct LibraryView: View {
                             Label("Delete Downloaded File", systemImage: "trash")
                         }
                     }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets(top: 2, leading: 12, bottom: 2, trailing: 12))
                 }
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
-            .padding(.bottom, listBottomPadding + 16)
         }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+        .contentMargins(.bottom, listBottomPadding + 16, for: .scrollContent)
         .scrollDismissesKeyboard(.interactively)
     }
 
@@ -321,10 +403,31 @@ struct LibraryView: View {
                 UISelectionFeedbackGenerator().selectionChanged()
             }
 
-            libraryAction(
-                title: "Import",
-                systemImage: "plus.circle.fill"
-            ) {
+            Menu {
+                Button {
+                    showFilePicker = true
+                } label: {
+                    Label("Import Music", systemImage: "plus.circle.fill")
+                }
+                Divider()
+                Button(role: .destructive) {
+                    presentRecentImportDeletion()
+                } label: {
+                    Label("Delete Recent Imports", systemImage: "trash")
+                }
+                Divider()
+                Button {
+                    showSettings = true
+                } label: {
+                    Label("Settings", systemImage: "gearshape")
+                }
+            } label: {
+                LibraryActionLabel(
+                    title: "Import",
+                    systemImage: "plus.circle.fill",
+                    tint: .white.opacity(0.82)
+                )
+            } primaryAction: {
                 UIImpactFeedbackGenerator(style: .light).impactOccurred()
                 showFilePicker = true
             }
@@ -387,6 +490,29 @@ struct LibraryView: View {
                     )
                 }
             }
+            Divider()
+            Button("Save Current Filter") {
+                savedFilterName = library.searchText.isEmpty ? "My Filter" : library.searchText
+                showSaveFilter = true
+            }
+            if !savedFilters.isEmpty {
+                Menu("Saved Filters") {
+                    ForEach(savedFilters) { filter in
+                        Button(filter.name) {
+                            library.searchText = filter.query
+                            library.showFavoritesOnly = filter.favoritesOnly
+                            library.sortOrder = filter.sortOrder
+                        }
+                    }
+                    Divider()
+                    ForEach(savedFilters) { filter in
+                        Button("Delete \(filter.name)", role: .destructive) {
+                            savedFilters.removeAll { $0.id == filter.id }
+                            SavedLibraryFilter.save(savedFilters)
+                        }
+                    }
+                }
+            }
         } label: {
             VStack(spacing: 4) {
                 Image(systemName: "arrow.up.arrow.down")
@@ -422,6 +548,70 @@ struct LibraryView: View {
             player.handleTrackDeleted(track)
             playlists.removeTrackFromAll(track.id)
         }
+    }
+
+    private var recentImportCandidates: [Track] {
+        library.tracks.filter { $0.wasImported(onOrAfter: recentImportCutoff) }
+    }
+
+    private var recentImportDeletionSheet: some View {
+        NavigationStack {
+            Form {
+                Section("Choose a cutoff") {
+                    DatePicker(
+                        "Added on or after",
+                        selection: $recentImportCutoff,
+                        displayedComponents: [.date, .hourAndMinute]
+                    )
+                    Text("Choose the start of the import batch you want to remove.")
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("Preview") {
+                    LabeledContent("Tracks to remove", value: "\(recentImportCandidates.count)")
+                    ForEach(recentImportCandidates.prefix(3)) { track in
+                        Text("\(track.displayArtist) — \(track.title)")
+                            .lineLimit(1)
+                    }
+                    if recentImportCandidates.count > 3 {
+                        Text("and \(recentImportCandidates.count - 3) more")
+                            .foregroundStyle(.secondary)
+                    }
+                    Text("Only files copied inside SunoPlayer will be removed. Files in iCloud Drive stay untouched.")
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Delete Recent Imports")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showRecentImportDeletion = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Continue") {
+                        showRecentImportDeletion = false
+                        showRecentImportConfirmation = true
+                    }
+                    .disabled(recentImportCandidates.isEmpty)
+                }
+            }
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private func presentRecentImportDeletion() {
+        recentImportCutoff = Date()
+        showRecentImportDeletion = true
+    }
+
+    private func deleteRecentImportCandidates() {
+        let deletedTracks = library.deleteTracks(recentImportCandidates)
+        guard !deletedTracks.isEmpty else { return }
+
+        for track in deletedTracks {
+            player.handleTrackDeleted(track)
+        }
+        playlists.removeTracksFromAll(Set(deletedTracks.map(\.id)))
     }
 }
 

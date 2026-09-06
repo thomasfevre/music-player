@@ -2,12 +2,14 @@ import SwiftUI
 
 struct SmartPlaylistEditorView: View {
     @EnvironmentObject var playlists: PlaylistManager
+    @EnvironmentObject var library: MusicLibraryManager
     @Environment(\.dismiss) private var dismiss
 
     @State private var name = ""
     @State private var kind: Kind = .genre
     @State private var value = ""
     @State private var recentDays = 30
+    @State private var keepsUpdating = true
 
     let onCreate: (Playlist) -> Void
 
@@ -37,7 +39,12 @@ struct SmartPlaylistEditorView: View {
                     }
                 }
                 Section {
-                    Text("Smart playlists update automatically when your library or favorites change.")
+                    Toggle("Keep this playlist updated", isOn: $keepsUpdating)
+                    Text(
+                        keepsUpdating
+                            ? "This smart playlist updates automatically when your library or favorites change."
+                            : "This creates a normal playlist with the tracks that match this rule right now."
+                    )
                         .foregroundStyle(.secondary)
                 }
             }
@@ -70,7 +77,20 @@ struct SmartPlaylistEditorView: View {
         case .favorites: rule = .favorites
         case .recentlyAdded: rule = .recentlyAdded(days: recentDays)
         }
-        let created = playlists.createSmartPlaylist(name: name, rule: rule)
+        let created: Playlist
+        if keepsUpdating {
+            created = playlists.createSmartPlaylist(name: name, rule: rule)
+        } else {
+            let matchingTrackIDs = library.tracks
+                .filter { rule.matches($0, favoriteIDs: library.favoriteIDs) }
+                .sorted { $0.dateImported > $1.dateImported }
+                .map(\.id)
+            let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+            created = playlists.createPlaylist(
+                name: trimmedName.isEmpty ? rule.summary : trimmedName,
+                trackIDs: matchingTrackIDs
+            )
+        }
         dismiss()
         onCreate(created)
     }

@@ -61,6 +61,88 @@ final class TrackTests: XCTestCase {
         XCTAssertEqual(Track(title: "T", artist: "Real", fileName: "f.m4a").displayArtist, "Real")
     }
 
+    func testFileNameMetadataRecoversArtistAndTitleWithoutSplittingRemixSuffix() {
+        let metadata = TrackFileNameMetadata.parse("Showtek - Bouncer - Extended Mix.mp3")
+
+        XCTAssertEqual(metadata.artist, "Showtek")
+        XCTAssertEqual(metadata.title, "Bouncer - Extended Mix")
+    }
+
+    func testFileNameMetadataLeavesUnstructuredNamesAsTitleOnly() {
+        let metadata = TrackFileNameMetadata.parse("Instrumental_demo.mp3")
+
+        XCTAssertNil(metadata.artist)
+        XCTAssertEqual(metadata.title, "Instrumental demo")
+    }
+
+    func testBrowseMetadataSplitsMultiValueArtistTagsAndDeduplicatesThem() {
+        XCTAssertEqual(
+            TrackBrowseMetadata.components(from: "Alesso, Katy Perry, Alesso"),
+            ["Alesso", "Katy Perry"]
+        )
+    }
+
+    func testBrowseMetadataKeepsAmpersandInArtistNames() {
+        XCTAssertEqual(
+            TrackBrowseMetadata.components(from: "Earth, Wind & Fire"),
+            ["Earth", "Wind & Fire"]
+        )
+    }
+
+    func testBrowseMetadataSplitsCommaSeparatedGenres() {
+        XCTAssertEqual(
+            TrackBrowseMetadata.components(from: "bass house, edm; future house, bass house"),
+            ["bass house", "edm", "future house"]
+        )
+    }
+
+    func testBrowseMetadataKeepsSlashInArtistNames() {
+        XCTAssertEqual(TrackBrowseMetadata.components(from: "AC/DC"), ["AC/DC"])
+    }
+
+    func testBrowseMetadataIgnoresMissingOrBlankTags() {
+        XCTAssertEqual(TrackBrowseMetadata.components(from: nil), [])
+        XCTAssertEqual(TrackBrowseMetadata.components(from: "  "), [])
+    }
+
+    func testArtworkPreferencesApplyStatsStyleAndRestoreStableColors() {
+        let previousStyle = ArtworkPreferences.defaultStyle
+        let previousUniqueColors = ArtworkPreferences.usesUniqueColors
+        defer {
+            ArtworkPreferences.defaultStyle = previousStyle
+            ArtworkPreferences.usesUniqueColors = previousUniqueColors
+        }
+
+        ArtworkPreferences.defaultStyle = .listeningPoster
+        ArtworkPreferences.usesUniqueColors = false
+        var track = Track(title: "Song", fileName: "song.mp3", gradientHue1: 0.1, gradientHue2: 0.2)
+        ArtworkPreferences.apply(to: &track)
+        XCTAssertEqual(track.artworkStyle, .listeningPoster)
+        XCTAssertEqual(track.gradientHue1, ArtworkTheme.violet.hue1)
+
+        ArtworkPreferences.usesUniqueColors = true
+        ArtworkPreferences.apply(to: &track)
+        XCTAssertEqual(track.gradientHue1, Track.stableHue(for: "song.mp3"), accuracy: 1e-12)
+    }
+
+    func testSavedLibraryFilterKeepsSearchAndFavoriteConstraint() {
+        let filter = SavedLibraryFilter(name: "EDM favorites", query: "EDM", favoritesOnly: true, sortOrder: .title)
+
+        XCTAssertEqual(filter.name, "EDM favorites")
+        XCTAssertEqual(filter.query, "EDM")
+        XCTAssertTrue(filter.favoritesOnly)
+        XCTAssertEqual(filter.sortOrder, .title)
+    }
+
+    func testImportDateCutoffIncludesTheCutoffInstant() {
+        let cutoff = Date(timeIntervalSince1970: 1_000)
+        let atCutoff = Track(title: "A", fileName: "a.mp3", dateImported: cutoff)
+        let beforeCutoff = Track(title: "B", fileName: "b.mp3", dateImported: cutoff.addingTimeInterval(-1))
+
+        XCTAssertTrue(atCutoff.wasImported(onOrAfter: cutoff))
+        XCTAssertFalse(beforeCutoff.wasImported(onOrAfter: cutoff))
+    }
+
     func testEqualityByIdOnly() {
         let a = Track(title: "Same", fileName: "same.m4a")
         var copy = a
@@ -111,6 +193,41 @@ final class TrackTests: XCTestCase {
         XCTAssertNil(track.preferredArtworkFileName)
         XCTAssertNil(track.artworkURL)
         XCTAssertNotNil(track.embeddedArtworkURL)
+    }
+
+    func testListeningPosterHidesPhotoAndEmbeddedArtwork() {
+        let track = Track(
+            title: "T",
+            fileName: "tune.m4a",
+            artworkFileName: "embedded.img",
+            customArtworkFileName: "custom.jpg",
+            artworkStyle: .listeningPoster
+        )
+
+        XCTAssertTrue(track.usesListeningPoster)
+        XCTAssertNil(track.preferredArtworkFileName)
+        XCTAssertNil(track.artworkURL)
+    }
+
+    func testListeningPosterUsesStoredGradientHues() {
+        let track = Track(
+            title: "T",
+            fileName: "tune.m4a",
+            artworkStyle: .listeningPoster,
+            gradientHue1: 0.1,
+            gradientHue2: 0.2
+        )
+
+        XCTAssertEqual(track.displayGradientHues.0, 0.1)
+        XCTAssertEqual(track.displayGradientHues.1, 0.2)
+    }
+
+    func testCodableRoundTripPreservesArtworkStyle() throws {
+        let original = Track(title: "Song", fileName: "x.m4a", artworkStyle: .listeningPoster)
+        let decoded = try JSONDecoder().decode(Track.self, from: JSONEncoder().encode(original))
+
+        XCTAssertEqual(decoded.artworkStyle, .listeningPoster)
+        XCTAssertTrue(decoded.usesListeningPoster)
     }
 
     func testCodableRoundTripPreservesArtworkFileName() throws {

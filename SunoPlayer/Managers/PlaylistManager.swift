@@ -10,6 +10,7 @@ final class PlaylistManager: ObservableObject {
     @Published private(set) var lastError: String?
 
     private let saveFileName = "playlists.json"
+    private let lastUsedPlaylistKey = "lastUsedManualPlaylistID"
     private var saveURL: URL {
         Track.documentsDirectory.appendingPathComponent(saveFileName)
     }
@@ -21,9 +22,17 @@ final class PlaylistManager: ObservableObject {
     // MARK: - CRUD
 
     @discardableResult
-    func createPlaylist(name: String) -> Playlist {
+    func createPlaylist(name: String, trackIDs: [UUID] = []) -> Playlist {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        let playlist = Playlist(name: trimmed.isEmpty ? "New Playlist" : trimmed)
+        var uniqueIDs: [UUID] = []
+        var seen = Set<UUID>()
+        for trackID in trackIDs where seen.insert(trackID).inserted {
+            uniqueIDs.append(trackID)
+        }
+        let playlist = Playlist(
+            name: trimmed.isEmpty ? "New Playlist" : trimmed,
+            trackIDs: uniqueIDs
+        )
         playlists.append(playlist)
         save()
         return playlist
@@ -153,14 +162,22 @@ final class PlaylistManager: ObservableObject {
 
     // MARK: - Track membership
 
+    var lastUsedManualPlaylist: Playlist? {
+        guard let raw = UserDefaults.standard.string(forKey: lastUsedPlaylistKey),
+              let id = UUID(uuidString: raw) else { return nil }
+        return playlists.first { $0.id == id && $0.smartRule == nil }
+    }
+
     func addTrack(_ trackID: UUID, to playlist: Playlist) {
         guard let index = indexOf(playlist) else { return }
+        rememberLastUsedPlaylist(playlists[index])
         if playlists[index].addTrack(trackID) { save() }
     }
 
     /// Adds a batch in one mutation and performs at most one persistence write.
     func addTracks(_ trackIDs: [UUID], to playlist: Playlist) {
         guard let index = indexOf(playlist) else { return }
+        rememberLastUsedPlaylist(playlists[index])
         if playlists[index].addTracks(trackIDs) > 0 { save() }
     }
 
@@ -168,6 +185,11 @@ final class PlaylistManager: ObservableObject {
         guard let index = indexOf(playlist) else { return }
         playlists[index].removeTrack(trackID)
         save()
+    }
+
+    private func rememberLastUsedPlaylist(_ playlist: Playlist) {
+        guard playlist.smartRule == nil else { return }
+        UserDefaults.standard.set(playlist.id.uuidString, forKey: lastUsedPlaylistKey)
     }
 
     func removeTracks(_ trackIDs: Set<UUID>, from playlist: Playlist) {
@@ -197,6 +219,20 @@ final class PlaylistManager: ObservableObject {
         for index in playlists.indices where playlists[index].contains(trackID) {
             playlists[index].removeTrack(trackID)
             changed = true
+        }
+        if changed { save() }
+    }
+
+    /// Removes a set of deleted library tracks from every manual playlist in one save.
+    func removeTracksFromAll(_ trackIDs: Set<UUID>) {
+        guard !trackIDs.isEmpty else { return }
+        var changed = false
+        for index in playlists.indices where playlists[index].smartRule == nil {
+            let before = playlists[index].count
+            for trackID in trackIDs {
+                playlists[index].removeTrack(trackID)
+            }
+            changed = changed || playlists[index].count != before
         }
         if changed { save() }
     }

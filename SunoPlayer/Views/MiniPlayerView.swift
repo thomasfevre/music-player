@@ -8,7 +8,6 @@ struct MiniPlayerView: View {
     @Binding var showNowPlaying: Bool
 
     @State private var isAnimatingArt = false
-    @StateObject private var artwork = ArtworkLoader()
 
     private var track: Track? {
         guard let current = player.currentTrack else { return nil }
@@ -18,14 +17,10 @@ struct MiniPlayerView: View {
     var body: some View {
         HStack(spacing: 14) {
             // Artwork
-            ZStack {
-                if let image = artwork.image {
-                    Image(uiImage: image)
-                        .resizable()
-                        .scaledToFill()
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                        .shadow(color: .black.opacity(0.4), radius: 8, y: 2)
+            Group {
+                if let track {
+                    TrackArtworkView(track: track, size: 44, cornerRadius: 8)
+                        .shadow(color: track.gradientColors.first?.opacity(0.5) ?? .clear, radius: 8, y: 2)
                         .scaleEffect(isAnimatingArt && player.isPlaying ? 1.04 : 1.0)
                         .animation(
                             player.isPlaying
@@ -35,31 +30,11 @@ struct MiniPlayerView: View {
                         )
                 } else {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(
-                            LinearGradient(
-                                colors: track?.gradientColors ?? [.purple, .blue],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
+                        .fill(LinearGradient(colors: [.purple, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
                         .frame(width: 44, height: 44)
-                        .shadow(color: (track?.gradientColors.first ?? .purple).opacity(0.5), radius: 8, y: 2)
-                        .scaleEffect(isAnimatingArt && player.isPlaying ? 1.04 : 1.0)
-                        .animation(
-                            player.isPlaying
-                                ? .easeInOut(duration: 0.9).repeatForever(autoreverses: true)
-                                : .default,
-                            value: isAnimatingArt
-                        )
-
-                    Image(systemName: "music.note")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.white.opacity(0.8))
                 }
             }
-            .onAppear { isAnimatingArt = true; artwork.load(for: track) }
-            .onChange(of: track?.id) { artwork.load(for: track) }
-            .onChange(of: track?.preferredArtworkFileName) { artwork.load(for: track) }
+            .onAppear { isAnimatingArt = true }
 
             // Title & Artist
             VStack(alignment: .leading, spacing: 2) {

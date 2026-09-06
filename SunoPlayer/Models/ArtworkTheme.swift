@@ -1,5 +1,74 @@
 import Foundation
 
+enum DefaultTrackArtworkStyle: String, CaseIterable, Identifiable {
+    case original, color, listeningPoster
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .original: return "Original"
+        case .color: return "Color"
+        case .listeningPoster: return "Stats Poster"
+        }
+    }
+}
+
+enum StatsCoverMetric: String, CaseIterable, Identifiable {
+    case plays, minutes, skips
+    var id: String { rawValue }
+    var title: String { rawValue.capitalized }
+}
+
+enum ArtworkPreferences {
+    private static let styleKey = "defaultTrackArtworkStyle"
+    private static let uniqueColorsKey = "usesUniqueArtworkColors"
+    private static let badgesKey = "showsListeningBadges"
+    private static let metricKey = "statsCoverMetric"
+
+    static var defaultStyle: DefaultTrackArtworkStyle {
+        get { DefaultTrackArtworkStyle(rawValue: UserDefaults.standard.string(forKey: styleKey) ?? "") ?? .original }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: styleKey) }
+    }
+
+    static var usesUniqueColors: Bool {
+        get { UserDefaults.standard.object(forKey: uniqueColorsKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: uniqueColorsKey) }
+    }
+
+    static var showsListeningBadges: Bool {
+        get { UserDefaults.standard.object(forKey: badgesKey) as? Bool ?? false }
+        set { UserDefaults.standard.set(newValue, forKey: badgesKey) }
+    }
+
+    static var statsCoverMetric: StatsCoverMetric {
+        get { StatsCoverMetric(rawValue: UserDefaults.standard.string(forKey: metricKey) ?? "") ?? .plays }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: metricKey) }
+    }
+
+    static func apply(to track: inout Track) {
+        switch defaultStyle {
+        case .original:
+            track.artworkStyle = nil
+            track.usesGeneratedArtwork = nil
+        case .color:
+            track.artworkStyle = .color
+            track.usesGeneratedArtwork = false
+        case .listeningPoster:
+            track.artworkStyle = .listeningPoster
+            track.usesGeneratedArtwork = false
+        }
+        if usesUniqueColors {
+            let hue = Track.stableHue(for: track.fileName)
+            track.gradientHue1 = hue
+            track.gradientHue2 = (hue + 0.25).truncatingRemainder(dividingBy: 1.0)
+        } else {
+            track.gradientHue1 = ArtworkTheme.violet.hue1
+            track.gradientHue2 = ArtworkTheme.violet.hue2
+        }
+    }
+}
+
 /// A small, curated set of gradients used when no photo artwork is selected.
 struct ArtworkTheme: Identifiable, Equatable {
     let id: String

@@ -167,6 +167,14 @@ struct PlaybackQueue {
         replaceActiveOrder(Array(activeOrder.prefix(currentIndex + 1)), keeping: current)
     }
 
+    /// Replaces only the future portion of the queue while preserving playback history
+    /// and the current track. The caller owns ordering and duplicate policy.
+    mutating func replaceUpcoming(with tracks: [Track]) {
+        guard let current = currentTrack else { return }
+        let prefix = Array(activeOrder.prefix(currentIndex + 1))
+        replaceActiveOrder(prefix + tracks, keeping: current)
+    }
+
     private mutating func replaceActiveOrder(_ order: [Track], keeping current: Track) {
         baseOrder = order
         if shuffleEnabled { shuffledOrder = order }

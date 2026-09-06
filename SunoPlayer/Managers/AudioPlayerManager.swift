@@ -17,6 +17,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     @Published private(set) var duration: TimeInterval = 0
     @Published private(set) var lastError: String?
     @Published private(set) var activeQueue: [Track] = []
+    @Published private(set) var autoDJSession: AutoDJSession?
     @Published var shuffleEnabled: Bool = false
     @Published var repeatMode: RepeatMode = .off
 
@@ -28,9 +29,15 @@ final class AudioPlayerManager: NSObject, ObservableObject {
 
     // MARK: Private
     private var player: AVPlayer?
+    private var fadingOutPlayer: AVPlayer?
+    private var crossfadeCancellable: AnyCancellable?
+    private var pendingCrossfadeDuration: TimeInterval?
+    private var crossfadeStartedForCurrentItem = false
     private var timeObserver: Any?
     private var itemStatusObservation: NSKeyValueObservation?
     private var queue = PlaybackQueue()
+    private var manuallyQueuedTrackIDs: Set<UUID> = []
+    private var playbackObservation: PlaybackObservation?
     private var wasPlayingBeforeInterruption = false
     private var sleepCancellable: AnyCancellable?
     /// Position to seek to once the current item reaches `.readyToPlay` (resume restore).
@@ -45,10 +52,31 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     private var sessionObservers: [NSObjectProtocol] = []
     /// Remote-command targets, retained so they can be removed in `deinit`.
     private var remoteTargets: [(MPRemoteCommand, Any)] = []
+    let listeningHistory: ListeningHistoryStore
+
+    private struct PlaybackObservation {
+        let trackID: UUID
+        let previousTrackID: UUID?
+        let source: PlaybackSource
+        let startedAt: Date
+        var listenedSeconds: TimeInterval
+        var lastPosition: TimeInterval
+        let wasReplay: Bool
+    }
 
     // MARK: Init
     override init() {
+        listeningHistory = ListeningHistoryStore()
         super.init()
+        lastError = listeningHistory.lastError
+        setupRemoteControls()
+        setupAudioSessionObservers()
+    }
+
+    init(listeningHistory: ListeningHistoryStore) {
+        self.listeningHistory = listeningHistory
+        super.init()
+        lastError = listeningHistory.lastError
         setupRemoteControls()
         setupAudioSessionObservers()
     }
@@ -60,12 +88,22 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         sessionObservers.forEach { NotificationCenter.default.removeObserver($0) }
         for (command, token) in remoteTargets { command.removeTarget(token) }
         sleepCancellable?.cancel()
+        crossfadeCancellable?.cancel()
+        fadingOutPlayer?.pause()
     }
 
     // MARK: - Playback Control
 
     /// Load a track from a given queue and start playing.
-    func play(_ track: Track, in newQueue: [Track]) {
+    func play(
+        _ track: Track,
+        in newQueue: [Track],
+        source: PlaybackSource = .library
+    ) {
+        let shouldCrossfade = isPlaying
+        finalizePlayback(reason: .replacedBySelection)
+        stopAutoDJ()
+        manuallyQueuedTrackIDs.removeAll()
         queue.repeatMode = repeatMode
         if queue.shuffleEnabled != shuffleEnabled {
             queue.setShuffle(shuffleEnabled)
@@ -73,14 +111,13 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         queue.setQueue(newQueue, startAt: track)
         syncQueue()
         guard let current = queue.currentTrack else { return }
-        loadAndPlay(track: current)
+        loadAndPlay(track: current, source: source, crossfade: shouldCrossfade)
     }
 
     func playPause() {
         guard player != nil else { return }
         if isPlaying {
-            player?.pause()
-            isPlaying = false
+            pausePlayback()
             persistPlayback()
         } else {
             guard activateSession() else { updateNowPlayingPlaybackState(); return }
@@ -91,11 +128,28 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     }
 
     func next() {
+        advance(reason: .manualSkip)
+    }
+
+    private func advance(reason: ListeningEndReason, crossfadeDuration: TimeInterval? = nil) {
         guard !queue.isEmpty else { return }
+        let previousTrackID = currentTrack?.id
+        finalizePlayback(
+            reason: reason,
+            additionalListenedSeconds: reason == .naturalCompletion ? crossfadeDuration ?? 0 : 0
+        )
         queue.repeatMode = repeatMode
         if repeatMode == .one {
             guard player != nil else { return }   // nothing loaded — never claim "playing"
             seek(to: 0)
+            if let currentTrack {
+                beginPlaybackObservation(
+                    track: currentTrack,
+                    previousTrackID: previousTrackID,
+                    source: autoDJSession == nil ? .queue : .autoDJ,
+                    wasReplay: true
+                )
+            }
             if activateSession() {
                 player?.play()
                 isPlaying = true
@@ -106,23 +160,57 @@ final class AudioPlayerManager: NSObject, ObservableObject {
             return
         }
         if let index = queue.next(), let track = queue.track(at: index) {
+            manuallyQueuedTrackIDs.remove(track.id)
+            let recommendation = autoDJSession?.recommendationsByTrackID[track.id]
+            let source: PlaybackSource = recommendation == nil
+                ? .queue
+                : .autoDJ
+            autoDJSession?.playedTrackIDs.insert(track.id)
+            autoDJSession?.currentRecommendation = recommendation
+            autoDJSession?.recommendationsByTrackID.removeValue(forKey: track.id)
             syncQueue()
-            loadAndPlay(track: track)
+            loadAndPlay(
+                track: track,
+                source: source,
+                previousTrackID: previousTrackID,
+                crossfade: reason == .naturalCompletion || reason == .manualSkip,
+                crossfadeDuration: crossfadeDuration
+            )
+            replenishAutoDJQueue()
         } else {
             // End of queue with repeat off.
-            player?.pause()
-            isPlaying = false
-            updateNowPlayingPlaybackState()
+            stopAutoDJ()
+            pausePlayback()
         }
     }
 
     func previous() {
         switch queue.previous(currentTime: currentTime) {
         case .restart:
+            finalizePlayback(reason: .previous)
             seek(to: 0)
+            if let currentTrack {
+                beginPlaybackObservation(
+                    track: currentTrack,
+                    previousTrackID: nil,
+                    source: autoDJSession == nil ? .queue : .autoDJ,
+                    wasReplay: true
+                )
+            }
         case .play(let index):
+            let previousTrackID = currentTrack?.id
+            finalizePlayback(reason: .previous)
+            autoDJSession?.currentRecommendation = nil
             syncQueue()
-            if let track = queue.track(at: index) { loadAndPlay(track: track) }
+            if let track = queue.track(at: index) {
+                autoDJSession?.playedTrackIDs.insert(track.id)
+                loadAndPlay(
+                    track: track,
+                    source: .queue,
+                    previousTrackID: previousTrackID,
+                    crossfade: isPlaying
+                )
+            }
         case .none:
             break
         }
@@ -132,6 +220,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         let cmTime = CMTime(seconds: time, preferredTimescale: 1000)
         player?.seek(to: cmTime, toleranceBefore: .zero, toleranceAfter: .zero)
         currentTime = time
+        playbackObservation?.lastPosition = time
         updateNowPlayingInfo()
     }
 
@@ -149,9 +238,18 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     /// Coordinate with a track deletion. If the deleted track is currently playing,
     /// playback stops and the selection clears; otherwise the queue is just trimmed.
     func handleTrackDeleted(_ track: Track) {
+        let deletingCurrentTrack = currentTrack == track
+        if deletingCurrentTrack {
+            finalizePlayback(reason: .deleted)
+        }
+        removeListeningHistory(for: track.id)
+        manuallyQueuedTrackIDs.remove(track.id)
+        autoDJSession?.excludedTrackIDs.insert(track.id)
+        autoDJSession?.recommendationsByTrackID.removeValue(forKey: track.id)
         let wasCurrent = queue.remove(track)
         syncQueue()
         if wasCurrent {
+            stopAutoDJ()
             queue = PlaybackQueue()
             queue.repeatMode = repeatMode
             if shuffleEnabled { queue.setShuffle(true) }
@@ -162,19 +260,47 @@ final class AudioPlayerManager: NSObject, ObservableObject {
 
     func enqueueNext(_ track: Track) {
         guard currentTrack != nil else {
-            play(track, in: [track])
+            play(track, in: [track], source: .queue)
             return
         }
+        guard currentTrack?.id != track.id else { return }
+        manuallyQueuedTrackIDs.insert(track.id)
+        autoDJSession?.recommendationsByTrackID.removeValue(forKey: track.id)
         queue.enqueueNext(track)
+        recordListeningEvent(.action(
+            trackID: track.id,
+            relatedTrackID: currentTrack?.id,
+            kind: .queuedNext,
+            at: Date()
+        ))
         syncQueue()
     }
 
     func enqueueLater(_ track: Track) {
         guard currentTrack != nil else {
-            play(track, in: [track])
+            play(track, in: [track], source: .queue)
             return
         }
-        queue.enqueueLater(track)
+        guard currentTrack?.id != track.id else { return }
+        manuallyQueuedTrackIDs.insert(track.id)
+        autoDJSession?.recommendationsByTrackID.removeValue(forKey: track.id)
+        if autoDJSession != nil {
+            // Deduplicate against both playback history and upcoming suggestions before
+            // promoting this explicit request ahead of automatic recommendations.
+            queue.enqueueLater(track)
+            let remaining = queue.upcomingTracks.filter { $0.id != track.id }
+            let manual = remaining.filter { manuallyQueuedTrackIDs.contains($0.id) }
+            let automatic = remaining.filter { !manuallyQueuedTrackIDs.contains($0.id) }
+            queue.replaceUpcoming(with: manual + [track] + automatic)
+        } else {
+            queue.enqueueLater(track)
+        }
+        recordListeningEvent(.action(
+            trackID: track.id,
+            relatedTrackID: currentTrack?.id,
+            kind: .queuedLater,
+            at: Date()
+        ))
         syncQueue()
     }
 
@@ -184,17 +310,154 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     }
 
     func removeUpcoming(at offsets: IndexSet) {
+        let removed = offsets.compactMap {
+            queue.upcomingTracks.indices.contains($0) ? queue.upcomingTracks[$0] : nil
+        }
         queue.removeUpcoming(at: offsets)
+        let events = removed.map {
+            ListeningEvent.action(
+                trackID: $0.id,
+                relatedTrackID: currentTrack?.id,
+                kind: .removedFromQueue,
+                at: Date()
+            )
+        }
+        for track in removed {
+            manuallyQueuedTrackIDs.remove(track.id)
+            if autoDJSession?.recommendationsByTrackID[track.id] != nil {
+                autoDJSession?.excludedTrackIDs.insert(track.id)
+            }
+            autoDJSession?.recommendationsByTrackID.removeValue(forKey: track.id)
+        }
+        recordListeningEvents(events)
         syncQueue()
+        replenishAutoDJQueue()
     }
 
     func clearUpcoming() {
+        let removed = queue.upcomingTracks
         queue.clearUpcoming()
+        let events = removed.map {
+            ListeningEvent.action(
+                trackID: $0.id,
+                relatedTrackID: currentTrack?.id,
+                kind: .removedFromQueue,
+                at: Date()
+            )
+        }
+        for track in removed {
+            manuallyQueuedTrackIDs.remove(track.id)
+            autoDJSession?.recommendationsByTrackID.removeValue(forKey: track.id)
+        }
+        recordListeningEvents(events)
+        stopAutoDJ()
         syncQueue()
     }
 
     func clearError() {
         lastError = nil
+    }
+
+    // MARK: - Auto-DJ
+
+    var isAutoDJEnabled: Bool {
+        autoDJSession != nil
+    }
+
+    var autoDJUpcomingRecommendations: [AutoDJRecommendation] {
+        guard let autoDJSession else { return [] }
+        return queue.upcomingTracks.compactMap {
+            autoDJSession.recommendationsByTrackID[$0.id]
+        }
+    }
+
+    var currentAutoDJReason: String? {
+        autoDJSession?.currentRecommendation?.reasonText
+    }
+
+    @discardableResult
+    func startAutoDJ(
+        library: [Track],
+        favoriteIDs: Set<UUID>,
+        playlistGroups: [[UUID]]
+    ) -> Bool {
+        guard currentTrack != nil, library.count > 1 else { return false }
+
+        let manualTracks = queue.upcomingTracks.filter {
+            manuallyQueuedTrackIDs.contains($0.id)
+        }
+        queue.clearUpcoming()
+        for track in manualTracks {
+            queue.enqueueLater(track)
+        }
+
+        var session = AutoDJSession(
+            library: library,
+            favoriteIDs: favoriteIDs,
+            playlistGroups: playlistGroups
+        )
+        if let currentTrack {
+            session.playedTrackIDs.insert(currentTrack.id)
+        }
+        autoDJSession = session
+        syncQueue()
+        replenishAutoDJQueue()
+        return !queue.upcomingTracks.isEmpty
+    }
+
+    func stopAutoDJ() {
+        guard let session = autoDJSession else { return }
+        let manualTracks = queue.upcomingTracks.filter {
+            manuallyQueuedTrackIDs.contains($0.id) &&
+            session.recommendationsByTrackID[$0.id] == nil
+        }
+        queue.clearUpcoming()
+        for track in manualTracks {
+            queue.enqueueLater(track)
+        }
+        autoDJSession = nil
+        syncQueue()
+    }
+
+    func submitAutoDJFeedback(positive: Bool) {
+        guard isAutoDJEnabled, let currentTrack else { return }
+        recordListeningEvent(.feedback(
+            trackID: currentTrack.id,
+            previousTrackID: playbackObservation?.previousTrackID,
+            positive: positive,
+            at: Date()
+        ))
+
+        if positive {
+            if autoDJSession?.preferredTracks.contains(where: { $0.id == currentTrack.id }) == false {
+                autoDJSession?.preferredTracks.append(currentTrack)
+            }
+            rebuildAutoDJRecommendations()
+        } else {
+            autoDJSession?.excludedTrackIDs.insert(currentTrack.id)
+            advance(reason: .manualSkip)
+        }
+    }
+
+    func recordFavoriteChange(for trackID: UUID, isFavorite: Bool) {
+        recordListeningEvent(.action(
+            trackID: trackID,
+            kind: isFavorite ? .favoriteAdded : .favoriteRemoved,
+            at: Date()
+        ))
+        if isFavorite {
+            autoDJSession?.favoriteIDs.insert(trackID)
+        } else {
+            autoDJSession?.favoriteIDs.remove(trackID)
+        }
+    }
+
+    func resetListeningHistory() {
+        if listeningHistory.reset() {
+            stopAutoDJ()
+        } else {
+            lastError = listeningHistory.lastError
+        }
     }
 
     // MARK: - Resume Last Session
@@ -208,7 +471,12 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         queue.repeatMode = repeatMode
         queue.setQueue(tracks, startAt: restore.track)
         syncQueue()
-        loadAndPlay(track: restore.track, autoPlay: false, startAt: restore.position)
+        loadAndPlay(
+            track: restore.track,
+            autoPlay: false,
+            startAt: restore.position,
+            source: .restored
+        )
     }
 
     /// Persist immediately (e.g. when the app moves to the background).
@@ -284,8 +552,26 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     ///   - autoPlay: when false, the item loads paused (used to restore the last session at
     ///     launch without grabbing the audio session from other apps).
     ///   - startAt: position to seek to once loaded (used for resume).
-    private func loadAndPlay(track: Track, autoPlay: Bool = true, startAt: TimeInterval = 0) {
-        tearDownCurrentItem()
+    private func loadAndPlay(
+        track: Track,
+        autoPlay: Bool = true,
+        startAt: TimeInterval = 0,
+        source: PlaybackSource = .queue,
+        previousTrackID: UUID? = nil,
+        wasReplay: Bool = false,
+        crossfade: Bool = false,
+        crossfadeDuration: TimeInterval? = nil
+    ) {
+        let configuredCrossfade = min(
+            PlaybackPreferences.crossfadeDuration,
+            crossfadeDuration ?? PlaybackPreferences.crossfadeDuration
+        )
+        let shouldCrossfade = crossfade && isPlaying && configuredCrossfade > 0
+        let outgoingPlayer = tearDownCurrentItem(keepPlaying: shouldCrossfade)
+        if shouldCrossfade {
+            fadingOutPlayer = outgoingPlayer
+            pendingCrossfadeDuration = configuredCrossfade
+        }
 
         guard FileManager.default.fileExists(atPath: track.fileURL.path) else {
             handlePlaybackFailure("Audio file is missing: \(track.title)")
@@ -299,11 +585,20 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         duration = track.duration
         currentTime = startAt
         lastPersistedTime = startAt
+        beginPlaybackObservation(
+            track: track,
+            previousTrackID: previousTrackID,
+            source: source,
+            wasReplay: wasReplay,
+            startingAt: startAt
+        )
 
         let item = AVPlayerItem(url: track.fileURL)
         let newPlayer = AVPlayer(playerItem: item)
         newPlayer.defaultRate = playbackRate   // play() honors this rate
+        newPlayer.volume = shouldCrossfade ? 0 : 1
         player = newPlayer
+        crossfadeStartedForCurrentItem = false
 
         // Defer the resume seek until the item is ready; seeking an unknown-status item can
         // silently no-op, leaving playback at 0 while the UI shows the restored position.
@@ -316,7 +611,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, item === self.player?.currentItem else { return }
-                self.next()
+                self.advance(reason: .naturalCompletion)
             }
         }
         let failObs = NotificationCenter.default.addObserver(
@@ -335,16 +630,18 @@ final class AudioPlayerManager: NSObject, ObservableObject {
             switch observedItem.status {
             case .readyToPlay:
                 Task { @MainActor in
-                    guard let self, observedItem === self.player?.currentItem,
-                          let target = self.pendingSeek else { return }
-                    self.pendingSeek = nil
-                    // Clamp against the real duration now that it's known, guarding corrupted saves.
-                    let realDuration = observedItem.duration.isNumeric ? observedItem.duration.seconds : self.duration
-                    let clamped = realDuration > 0 ? min(target, realDuration) : target
-                    self.player?.seek(to: CMTime(seconds: clamped, preferredTimescale: 1000),
-                                      toleranceBefore: .zero, toleranceAfter: .zero)
-                    self.currentTime = clamped
-                    self.updateNowPlayingInfo()
+                    guard let self, observedItem === self.player?.currentItem else { return }
+                    if let target = self.pendingSeek {
+                        self.pendingSeek = nil
+                        // Clamp against the real duration now that it's known, guarding corrupted saves.
+                        let realDuration = observedItem.duration.isNumeric ? observedItem.duration.seconds : self.duration
+                        let clamped = realDuration > 0 ? min(target, realDuration) : target
+                        self.player?.seek(to: CMTime(seconds: clamped, preferredTimescale: 1000),
+                                          toleranceBefore: .zero, toleranceAfter: .zero)
+                        self.currentTime = clamped
+                        self.updateNowPlayingInfo()
+                    }
+                    self.startPendingCrossfadeIfNeeded()
                 }
             case .failed:
                 let message = observedItem.error?.localizedDescription ?? "This track could not be loaded"
@@ -364,12 +661,27 @@ final class AudioPlayerManager: NSObject, ObservableObject {
             MainActor.assumeIsolated {
                 guard let self else { return }
                 self.currentTime = time.seconds
+                self.updateListenedTime(position: time.seconds)
                 if let loaded = self.player?.currentItem?.duration, loaded.isNumeric {
                     self.duration = loaded.seconds
                 }
                 // Throttled crash-safety persistence (every ~5s of playback).
                 if self.isPlaying, abs(self.currentTime - self.lastPersistedTime) >= 5 {
                     self.persistPlayback()
+                }
+                let crossfadeLead = CrossfadePolicy.transitionLeadTime(
+                    duration: self.duration,
+                    configured: PlaybackPreferences.crossfadeDuration
+                )
+                if self.isPlaying, CrossfadePolicy.shouldBegin(
+                    position: self.currentTime,
+                    duration: self.duration,
+                    configured: PlaybackPreferences.crossfadeDuration,
+                    hasNextTrack: !self.queue.upcomingTracks.isEmpty || self.repeatMode == .all,
+                    alreadyStarted: self.crossfadeStartedForCurrentItem
+                ) {
+                    self.crossfadeStartedForCurrentItem = true
+                    self.advance(reason: .naturalCompletion, crossfadeDuration: crossfadeLead)
                 }
             }
         }
@@ -385,7 +697,15 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         persistPlayback()
     }
 
-    private func tearDownCurrentItem() {
+    @discardableResult
+    private func tearDownCurrentItem(keepPlaying: Bool = false) -> AVPlayer? {
+        crossfadeCancellable?.cancel()
+        crossfadeCancellable = nil
+        pendingCrossfadeDuration = nil
+        fadingOutPlayer?.pause()
+        fadingOutPlayer = nil
+
+        let outgoingPlayer = player
         if let timeObserver, let player {
             player.removeTimeObserver(timeObserver)
         }
@@ -395,12 +715,65 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         itemObservers.forEach { NotificationCenter.default.removeObserver($0) }
         itemObservers.removeAll()
         pendingSeek = nil
-        player?.pause()
+        if !keepPlaying { outgoingPlayer?.pause() }
         player = nil
+        return outgoingPlayer
+    }
+
+    private func startCrossfade(from outgoing: AVPlayer, to incoming: AVPlayer, duration: TimeInterval) {
+        crossfadeCancellable?.cancel()
+        if fadingOutPlayer !== outgoing {
+            fadingOutPlayer?.pause()
+        }
+        fadingOutPlayer = outgoing
+
+        let startedAt = Date()
+        crossfadeCancellable = Timer.publish(every: 0.05, on: .main, in: .common)
+            .autoconnect()
+            .sink { [weak self, weak incoming, weak outgoing] _ in
+                MainActor.assumeIsolated {
+                    guard let self, let incoming, let outgoing else { return }
+                    let progress = min(1, Date().timeIntervalSince(startedAt) / max(0.1, duration))
+                    incoming.volume = Float(progress)
+                    outgoing.volume = Float(1 - progress)
+                    if progress >= 1 {
+                        outgoing.pause()
+                        self.fadingOutPlayer = nil
+                        self.crossfadeCancellable?.cancel()
+                        self.crossfadeCancellable = nil
+                    }
+                }
+            }
+    }
+
+    private func startPendingCrossfadeIfNeeded() {
+        guard let outgoing = fadingOutPlayer,
+              let incoming = player,
+              let duration = pendingCrossfadeDuration else { return }
+        pendingCrossfadeDuration = nil
+        startCrossfade(from: outgoing, to: incoming, duration: duration)
+    }
+
+    private func finishCrossfadeImmediately() {
+        crossfadeCancellable?.cancel()
+        crossfadeCancellable = nil
+        pendingCrossfadeDuration = nil
+        fadingOutPlayer?.pause()
+        fadingOutPlayer = nil
+        player?.volume = 1
+    }
+
+    private func pausePlayback() {
+        finishCrossfadeImmediately()
+        player?.pause()
+        isPlaying = false
+        updateNowPlayingPlaybackState()
     }
 
     /// Centralized failure handling for both pre-load (missing file) and async item failures.
     private func handlePlaybackFailure(_ message: String) {
+        finalizePlayback(reason: .failed)
+        stopAutoDJ()
         tearDownCurrentItem()
         isPlaying = false
         currentTime = 0
@@ -420,6 +793,130 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         currentTrack = nil
         clearPersistedPlayback()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+    }
+
+    private func beginPlaybackObservation(
+        track: Track,
+        previousTrackID: UUID?,
+        source: PlaybackSource,
+        wasReplay: Bool,
+        startingAt: TimeInterval = 0
+    ) {
+        playbackObservation = PlaybackObservation(
+            trackID: track.id,
+            previousTrackID: previousTrackID,
+            source: source,
+            startedAt: Date(),
+            listenedSeconds: 0,
+            lastPosition: startingAt,
+            wasReplay: wasReplay
+        )
+    }
+
+    private func updateListenedTime(position: TimeInterval) {
+        guard isPlaying, var observation = playbackObservation else { return }
+        let delta = position - observation.lastPosition
+        if delta > 0, delta <= 2 {
+            observation.listenedSeconds += delta
+        }
+        observation.lastPosition = position
+        playbackObservation = observation
+    }
+
+    private func finalizePlayback(
+        reason: ListeningEndReason,
+        additionalListenedSeconds: TimeInterval = 0
+    ) {
+        guard let observation = playbackObservation else { return }
+        playbackObservation = nil
+        recordListeningEvent(.playback(
+            trackID: observation.trackID,
+            previousTrackID: observation.previousTrackID,
+            source: observation.source,
+            startedAt: observation.startedAt,
+            endedAt: Date(),
+            listenedSeconds: observation.listenedSeconds + additionalListenedSeconds,
+            duration: duration,
+            endReason: reason,
+            wasReplay: observation.wasReplay
+        ))
+    }
+
+    private func recordListeningEvent(_ event: ListeningEvent) {
+        guard listeningHistory.record(event) else {
+            lastError = listeningHistory.lastError
+            return
+        }
+    }
+
+    private func recordListeningEvents(_ events: [ListeningEvent]) {
+        guard listeningHistory.record(events) else {
+            lastError = listeningHistory.lastError
+            return
+        }
+    }
+
+    private func removeListeningHistory(for trackID: UUID) {
+        guard listeningHistory.removeTrack(trackID) else {
+            lastError = listeningHistory.lastError
+            return
+        }
+    }
+
+    private func rebuildAutoDJRecommendations() {
+        guard var session = autoDJSession else { return }
+        let manualTracks = queue.upcomingTracks.filter {
+            manuallyQueuedTrackIDs.contains($0.id)
+        }
+        queue.clearUpcoming()
+        session.recommendationsByTrackID.removeAll()
+        autoDJSession = session
+        for track in manualTracks {
+            queue.enqueueLater(track)
+        }
+        syncQueue()
+        replenishAutoDJQueue()
+    }
+
+    private func replenishAutoDJQueue(targetCount: Int = 3) {
+        guard var session = autoDJSession,
+              let currentTrack else { return }
+
+        let activeIDs = session.playedTrackIDs.union(
+            [currentTrack.id] + queue.upcomingTracks.map(\.id)
+        )
+        let currentRecommendationCount = queue.upcomingTracks.reduce(into: 0) {
+            if session.recommendationsByTrackID[$1.id] != nil { $0 += 1 }
+        }
+        let needed = max(0, targetCount - currentRecommendationCount)
+        guard needed > 0 else { return }
+
+        let recentTrackIDs = Set(
+            listeningHistory.history.recentEvents
+                .filter { $0.kind == .playback }
+                .suffix(20)
+                .map(\.trackID)
+        )
+        let context = AutoDJContext(
+            favoriteIDs: session.favoriteIDs,
+            playlistGroups: session.playlistGroups,
+            recentTrackIDs: recentTrackIDs,
+            excludedTrackIDs: session.excludedTrackIDs.union(activeIDs),
+            preferredTracks: session.preferredTracks
+        )
+        let recommendations = AutoDJ.recommend(
+            after: currentTrack,
+            candidates: session.library,
+            context: context,
+            history: listeningHistory.history,
+            limit: needed
+        )
+        for recommendation in recommendations {
+            queue.enqueueLater(recommendation.track)
+            session.recommendationsByTrackID[recommendation.track.id] = recommendation
+        }
+        autoDJSession = session
+        syncQueue()
     }
 
     private func syncQueue() {
@@ -466,9 +963,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         case .began:
             wasPlayingBeforeInterruption = isPlaying
             if isPlaying {
-                player?.pause()
-                isPlaying = false
-                updateNowPlayingPlaybackState()
+                pausePlayback()
             }
         case .ended:
             let options = (info[AVAudioSessionInterruptionOptionKey] as? UInt)
@@ -492,9 +987,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
               let reason = AVAudioSession.RouteChangeReason(rawValue: raw) else { return }
 
         if AudioRoutePolicy.shouldPause(reason: reason), isPlaying {
-            player?.pause()
-            isPlaying = false
-            updateNowPlayingPlaybackState()
+            pausePlayback()
         }
     }
 
@@ -525,9 +1018,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         let pause = center.pauseCommand.addTarget { [weak self] _ in
             self?.onMain {
                 guard let self, self.player != nil else { return }
-                self.player?.pause()
-                self.isPlaying = false
-                self.updateNowPlayingPlaybackState()
+                self.pausePlayback()
             }
             return .success
         }
