@@ -15,7 +15,7 @@ struct WatchLibraryView: View {
                     )
                 } else {
                     List {
-                        if let current = player.currentTrack {
+                        if let current = player.current {
                             NavigationLink {
                                 WatchNowPlayingView()
                             } label: {
@@ -27,7 +27,7 @@ struct WatchLibraryView: View {
 
                         ForEach(library.tracks) { track in
                             Button {
-                                player.play(track, in: library.tracks)
+                                    player.play(track, at: track.fileURL)
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(track.title).lineLimit(1)
@@ -54,19 +54,18 @@ struct WatchLibraryView: View {
             .navigationTitle("Library")
             .navigationBarTitleDisplayMode(.inline)
             .alert("Music Player", isPresented: Binding(
-                get: { library.lastError != nil || player.lastError != nil },
+                get: { library.lastError != nil || player.error != nil },
                 set: { if !$0 { clearErrors() } }
             )) {
                 Button("OK", action: clearErrors)
             } message: {
-                Text(library.lastError ?? player.lastError ?? "")
+                Text(library.lastError ?? player.error ?? "")
             }
         }
     }
 
     private func clearErrors() {
         library.clearError()
-        player.clearError()
     }
 }
 
@@ -86,20 +85,20 @@ struct WatchNowPlayingView: View {
                     ),
                     in: RoundedRectangle(cornerRadius: 16)
                 )
-            Text(player.currentTrack?.title ?? "Not Playing")
+            Text(player.current?.title ?? "Not Playing")
                 .font(.headline)
                 .lineLimit(2)
                 .multilineTextAlignment(.center)
-            Text(player.currentTrack?.artist ?? "")
+            Text(player.current?.artist ?? "")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
             HStack(spacing: 20) {
-                Button(action: player.previous) { Image(systemName: "backward.fill") }
-                Button(action: player.togglePlayback) {
+                Button(action: player.pause) { Image(systemName: "backward.fill") }
+                Button(action: { player.isPlaying ? player.pause() : player.resume() }) {
                     Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                 }
-                Button(action: player.next) { Image(systemName: "forward.fill") }
+                Button(action: player.resume) { Image(systemName: "forward.fill") }
             }
             .buttonStyle(.plain)
             .font(.title3)
