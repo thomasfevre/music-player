@@ -13,6 +13,7 @@ struct LibraryView: View {
     @State private var showFilePicker = false
     @State private var showPlaylists = false
     @State private var showBrowser = false
+    @State private var showWatchOffline = false
     @State private var pendingDeletion: Track?
     @State private var artworkTrack: Track?
     @FocusState private var isSearchFocused: Bool
@@ -35,6 +36,11 @@ struct LibraryView: View {
                 }
             }
             .navigationTitle("Music Library")
+            .onAppear {
+                #if DEBUG
+                if ProcessInfo.processInfo.arguments.contains("UITEST_WATCH_SETTINGS") { showWatchOffline = true }
+                #endif
+            }
             .toolbar(.hidden, for: .navigationBar)
             .safeAreaInset(edge: .top, spacing: 0) {
                 libraryHeader
@@ -58,6 +64,9 @@ struct LibraryView: View {
                 LibraryBrowserView()
                     .environmentObject(library)
                     .environmentObject(player)
+            }
+            .sheet(isPresented: $showWatchOffline) {
+                WatchOfflineSettingsView().environmentObject(library)
             }
             .sheet(item: $artworkTrack) { track in
                 TrackArtworkEditorView(trackID: track.id)
@@ -102,6 +111,9 @@ struct LibraryView: View {
                         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
                     }
                     .contextMenu {
+                        Button { WatchOfflineManager.shared.send([track]) } label: {
+                            Label("Send to Watch", systemImage: "applewatch")
+                        }
                         Button {
                             player.enqueueNext(track)
                         } label: {
@@ -294,6 +306,10 @@ struct LibraryView: View {
                 systemImage: "music.note.list"
             ) {
                 showPlaylists = true
+            }
+
+            libraryAction(title: "Watch", systemImage: "applewatch") {
+                showWatchOffline = true
             }
 
             libraryAction(

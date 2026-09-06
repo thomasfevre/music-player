@@ -8,6 +8,7 @@ struct SunoPlayerApp: App {
     @StateObject private var playlists = PlaylistManager()
 
     init() {
+        _ = WatchOfflineManager.shared
         configureAudioSession()
     }
 
