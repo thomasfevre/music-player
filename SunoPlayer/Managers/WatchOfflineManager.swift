@@ -128,6 +128,8 @@ final class WatchOfflineManager: NSObject, ObservableObject, WCSessionDelegate {
             guard let self, self.requestID == id else { return }
             self.requestID = nil
             self.ready = true
+            self.state.recoverStaleTransfers(now: Date())
+            guard self.save() else { return }
             self.report("Watch inventory timed out; starting a bounded bootstrap transfer.")
             self.updateConnection()
             self.publish()

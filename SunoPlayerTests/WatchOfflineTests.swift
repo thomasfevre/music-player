@@ -56,6 +56,20 @@ final class WatchOfflineTests: XCTestCase {
         XCTAssertTrue(ledger.persistedIDs.contains(id))
     }
 
+    func testMissingReceiptReopensTransferSlotIdempotently() {
+        let now = Date()
+        var ledger = WatchTransferLedger()
+        var stale = job(phase: .awaitingReceipt, attempt: UUID())
+        stale.attempts = 1
+        stale.updatedAt = now.addingTimeInterval(-91)
+        ledger.jobs = [stale]
+
+        ledger.recoverStaleTransfers(now: now)
+
+        XCTAssertEqual(ledger.jobs[0].phase, .queued)
+        XCTAssertNil(ledger.jobs[0].attemptID)
+    }
+
     func testCancelledJobsDoNotResumeButLateReceiptIsTruthful() {
         let id = UUID(), watch = UUID(), attempt = UUID()
         var ledger = WatchTransferLedger()
