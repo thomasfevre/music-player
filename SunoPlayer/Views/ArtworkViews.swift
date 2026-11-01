@@ -550,8 +550,7 @@ struct SettingsView: View {
     @State private var crossfadeDuration = PlaybackPreferences.crossfadeDuration
     @State private var showApplyConfirmation = false
     @State private var showListeningStats = false
-    @State private var showWatchLibraryConfirmation = false
-    @ObservedObject private var watchTransfer = WatchTransferManager.shared
+    @State private var showWatchOffline = false
 
     var body: some View {
         NavigationStack {
@@ -601,68 +600,23 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    LabeledContent("Watch app") {
-                        Text(watchTransfer.isWatchAppInstalled ? "Installed" : "Not installed")
-                            .foregroundStyle(watchTransfer.isWatchAppInstalled ? .green : .secondary)
-                    }
-                    LabeledContent("Queued transfers", value: "\(watchTransfer.pendingCount)")
-                    LabeledContent("Delivered this session", value: "\(watchTransfer.completedTrackIDs.count)")
-                    LabeledContent("Tracks on Watch", value: "\(watchTransfer.watchTrackIDs.count)")
-                    LabeledContent("Library size", value: formattedBytes(librarySizeBytes))
-                    LabeledContent("Used on Watch") {
-                        Text(watchTransfer.watchStorageBytes.map(formattedBytes) ?? "Waiting for Watch…")
-                    }
-                    LabeledContent("Available on Watch") {
-                        Text(watchTransfer.watchAvailableBytes.map(formattedBytes) ?? "Waiting for Watch…")
-                    }
-
-                    if watchTransfer.batchTotal > 0 {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ProgressView(value: watchTransfer.batchProgress)
-                            Text("\(watchTransfer.batchCompleted) of \(watchTransfer.batchTotal) transfers finished")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-
                     Button {
-                        showWatchLibraryConfirmation = true
+                        showWatchOffline = true
                     } label: {
-                        Label("Sync Entire Library", systemImage: "applewatch.radiowaves.left.and.right")
-                    }
-                    .disabled(
-                        library.tracks.isEmpty
-                            || !watchTransfer.canTransfer
-                            || watchTransfer.pendingCount > 0
-                    )
-
-                    Button {
-                        _ = watchTransfer.refresh(with: library.tracks)
-                    } label: {
-                        Label("Refresh Apple Watch Library", systemImage: "arrow.clockwise")
-                    }
-                    .disabled(!watchTransfer.canTransfer || watchTransfer.pendingCount > 0)
-
-                    if watchTransfer.pendingCount > 0 {
-                        Button(role: .destructive) {
-                            watchTransfer.cancelPendingTransfers()
-                        } label: {
-                            Label("Cancel Pending Transfers", systemImage: "xmark.circle")
-                        }
-                    }
-                    if !watchTransfer.isWatchAppInstalled {
-                        Text("Install Music Player from the Watch app on your iPhone, then send a track from its context menu or an entire playlist from the playlist menu.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                        Label("Watch Offline", systemImage: "applewatch")
                     }
                 } header: {
                     Text("Apple Watch")
                 } footer: {
-                    Text("Transferred audio is stored and played directly on your Apple Watch. You may delete the iPhone copy after the transfer finishes.")
+                    Text("Send music, check what is actually saved on your Watch, and manage transfers.")
                 }
             }
             .navigationTitle("Settings")
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .sheet(isPresented: $showWatchOffline) {
+                WatchOfflineSettingsView()
+                    .environmentObject(library)
+            }
             .navigationDestination(isPresented: $showListeningStats) {
                 ListeningStatsView()
                     .environmentObject(library)
@@ -679,25 +633,6 @@ struct SettingsView: View {
             } message: {
                 Text("Your custom photos remain available.")
             }
-            .confirmationDialog("Send Entire Library?", isPresented: $showWatchLibraryConfirmation) {
-                Button("Send \(library.tracks.count) Tracks") {
-                    _ = watchTransfer.send(library.tracks)
-                }
-                Button("Cancel", role: .cancel) {}
-            } message: {
-                Text(watchTransferConfirmationMessage)
-            }
-            .alert(
-                "Apple Watch Transfer",
-                isPresented: Binding(
-                    get: { watchTransfer.lastError != nil },
-                    set: { if !$0 { watchTransfer.clearError() } }
-                )
-            ) {
-                Button("OK") { watchTransfer.clearError() }
-            } message: {
-                Text(watchTransfer.lastError ?? "")
-            }
             #if DEBUG
             .onAppear {
                 if ProcessInfo.processInfo.arguments.contains("UITEST_STATS") {
@@ -709,24 +644,6 @@ struct SettingsView: View {
         .preferredColorScheme(.dark)
     }
 
-    private var librarySizeBytes: Int64 {
-        library.tracks.reduce(0) { total, track in
-            let size = (try? track.fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
-            return total + Int64(size)
-        }
-    }
-
-    private var watchTransferConfirmationMessage: String {
-        let base = "This queues \(formattedBytes(librarySizeBytes)) for background transfer. Keep the iPhone and Apple Watch nearby until all transfers finish."
-        guard let available = watchTransfer.watchAvailableBytes, librarySizeBytes > available else {
-            return base
-        }
-        return "The library is larger than the reported free space on your Apple Watch. Some transfers may fail. \(base)"
-    }
-
-    private func formattedBytes(_ bytes: Int64) -> String {
-        ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
-    }
 }
 
 struct ListeningStatsView: View {

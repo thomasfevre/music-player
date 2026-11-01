@@ -63,13 +63,23 @@ final class OfflineTrackStore {
             // Duplicate deliveries are idempotent. A damaged record is recoverably replaced.
             if let existing = try? WatchWire.read(OfflineTrack.self, at: destination.appendingPathComponent("track.json")),
                existing == delivery.track, (try? WatchWire.checksum(audioURL(existing))) == existing.sha256 { return }
+        }
+        // Persist the revision before the commit. A crash or failed revision write must never
+        // leave a committed track with a revision older than the phone has already seen: the
+        // phone rejects older inventories and would wait for a fresh one forever. Advancing
+        // first is safe because inventories list the actual committed tracks, so a revision
+        // without a commit only makes the phone requeue a track that is genuinely absent.
+        let nextRevision = revision + 1
+        try WatchWire.write(nextRevision, to: revisionURL)
+        revision = nextRevision
+        if fm.fileExists(atPath: destination.path) {
             _ = try fm.replaceItemAt(destination, withItemAt: transaction)
         } else {
             try fm.moveItem(at: transaction, to: destination)
         }
-        revision += 1
-        try WatchWire.write(revision, to: root.appendingPathComponent("revision.json"))
     }
+
+    private var revisionURL: URL { root.appendingPathComponent("revision.json") }
 
     private func directory(_ id: UUID) -> URL { root.appendingPathComponent("Tracks/\(id.uuidString)") }
     private func validExtension(_ value: String) -> Bool {

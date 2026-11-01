@@ -53,7 +53,6 @@
 		D20D13E058076A0A8521158B /* M3UPlaylistDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = B68FECA482C7F2D277B856B5 /* M3UPlaylistDocument.swift */; };
 		D515A6BB346C7E12E2F3AF03 /* TrackQueryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1AEAEFE076D2A1C6191541F /* TrackQueryTests.swift */; };
 		D6F0CCD59C246A2F9C87EF55 /* OfflineTrackStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D842CBFE3091138FF795E9C6 /* OfflineTrackStore.swift */; };
-		DC02A6AAA523E6F5273A1899 /* WatchTransferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4BED905B8F184E33701D9DD4 /* WatchTransferManager.swift */; };
 		E0FFF7BDE5D8DF931E5BF44A /* TrackTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94F338A1830BCCE4B95E0C09 /* TrackTests.swift */; };
 		E32ECD797DA93441D15EACB8 /* ArtworkStorage.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA8B676555385E5FEB1702D9 /* ArtworkStorage.swift */; };
 		E6BD8C7F7925117402960D08 /* TestSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 445ACF1C3D300DDC4ACC8FC8 /* TestSupport.swift */; };
@@ -115,7 +114,6 @@
 		441814479462A31D490B700F /* Track.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Track.swift; sourceTree = "<group>"; };
 		445ACF1C3D300DDC4ACC8FC8 /* TestSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestSupport.swift; sourceTree = "<group>"; };
 		47217DE8191FAB74DC182C2F /* MiniPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniPlayerView.swift; sourceTree = "<group>"; };
-		4BED905B8F184E33701D9DD4 /* WatchTransferManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WatchTransferManager.swift; sourceTree = "<group>"; };
 		57DED4B2F011DAD7767B3B5E /* ListeningHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ListeningHistory.swift; sourceTree = "<group>"; };
 		5847FCB0C622FE5B67EADE79 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		5AF244D4860CE867D838B6BC /* PlaybackQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaybackQueue.swift; sourceTree = "<group>"; };
@@ -274,7 +272,6 @@
 				28F158572BC855DCE8C6B81B /* MusicLibraryManager.swift */,
 				B6748050835512C308136718 /* PlaylistManager.swift */,
 				3DD6A32CF466CF85DD1B3F69 /* WatchOfflineManager.swift */,
-				4BED905B8F184E33701D9DD4 /* WatchTransferManager.swift */,
 			);
 			path = Managers;
 			sourceTree = "<group>";
@@ -469,7 +466,6 @@
 				F21B7D8E54A5241926ACF03B /* WatchOfflineManager.swift in Sources */,
 				B977916F9B6784991C6A0C08 /* WatchOfflineSettingsView.swift in Sources */,
 				091EC634E2E81CA67EB33305 /* WatchSyncProtocol.swift in Sources */,
-				DC02A6AAA523E6F5273A1899 /* WatchTransferManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -539,7 +535,7 @@
 				INFOPLIST_FILE = SunoPlayerWatch/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SunoPlayer;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.thomas.sunoplayer;
-				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
 				INFOPLIST_KEY_WKWatchOnly = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.thomas.sunoplayer.watchkitapp;
 				SDKROOT = watchos;
@@ -644,7 +640,7 @@
 				INFOPLIST_FILE = SunoPlayerWatch/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = SunoPlayer;
 				INFOPLIST_KEY_WKCompanionAppBundleIdentifier = com.thomas.sunoplayer;
-				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = NO;
+				INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp = YES;
 				INFOPLIST_KEY_WKWatchOnly = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.thomas.sunoplayer.watchkitapp;
 				SDKROOT = watchos;

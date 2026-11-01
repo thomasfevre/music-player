@@ -6,7 +6,6 @@ struct SunoPlayerApp: App {
     @StateObject private var library = MusicLibraryManager()
     @StateObject private var player = AudioPlayerManager()
     @StateObject private var playlists = PlaylistManager()
-    private let watchTransfer = WatchTransferManager.shared
 
     init() {
         _ = WatchOfflineManager.shared

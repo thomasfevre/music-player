@@ -64,7 +64,7 @@ targets:
       properties:
         WKApplication: true
         WKCompanionAppBundleIdentifier: com.thomas.sunoplayer
-        WKRunsIndependentlyOfCompanionApp: false
+        WKRunsIndependentlyOfCompanionApp: true
         UIBackgroundModes:
           - audio
     settings:
@@ -74,7 +74,7 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_WKCompanionAppBundleIdentifier: com.thomas.sunoplayer
         INFOPLIST_KEY_WKWatchOnly: NO
-        INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: NO
+        INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: YES
         INFOPLIST_KEY_CFBundleDisplayName: SunoPlayer
         TARGETED_DEVICE_FAMILY: "4"
     scheme: {}
