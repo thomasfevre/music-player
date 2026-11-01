@@ -558,4 +558,23 @@ final class AudioPlayerManagerTests: XCTestCase {
         XCTAssertEqual(history.summary(for: retained), TrackListeningSummary())
         XCTAssertTrue(history.history.recentEvents.isEmpty)
     }
+
+    func testDefaultRepeatModeLoopsThePlaylist() {
+        let manager = AudioPlayerManager()
+        XCTAssertEqual(manager.repeatMode, .all)
+    }
+
+    func testPlaylistLoopsToFirstTrackAtTheEnd() async throws {
+        let (manager, _) = makeManager()
+        let first = try makePlayableTrack("loop-a", title: "Loop A")
+        let second = try makePlayableTrack("loop-b", title: "Loop B")
+
+        manager.play(first, in: [first, second], source: .library)
+
+        try await waitUntil(timeout: 4) { manager.currentTrack?.id == second.id }
+        try await waitUntil(timeout: 4) { manager.currentTrack?.id == first.id }
+
+        XCTAssertEqual(manager.currentTrack?.id, first.id)
+        XCTAssertTrue(manager.isPlaying)
+    }
 }

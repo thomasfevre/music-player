@@ -51,7 +51,10 @@ struct ContentView: View {
             player.restoreLastSession(in: library.tracks)
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active { WatchOfflineManager.shared.checkInventory() }
+            if phase == .active {
+                player.reactivateAudioSessionIfPlaying()
+                WatchOfflineManager.shared.checkInventory()
+            }
             if phase == .background || phase == .inactive {
                 player.saveStateNow()
             }

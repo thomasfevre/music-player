@@ -39,4 +39,12 @@ final class AudioPolicyTests: XCTestCase {
         XCTAssertFalse(CrossfadePolicy.shouldBegin(position: 99, duration: 100, configured: 3, hasNextTrack: false, alreadyStarted: false))
         XCTAssertFalse(CrossfadePolicy.shouldBegin(position: 99, duration: 100, configured: 3, hasNextTrack: true, alreadyStarted: true))
     }
+
+    func testAudioSessionConfiguresBackgroundCapablePlayback() throws {
+        try AudioSessionController.configure()
+        let session = AVAudioSession.sharedInstance()
+        XCTAssertEqual(session.category, .playback)
+        XCTAssertEqual(session.mode, .default)
+        XCTAssertTrue(session.categoryOptions.contains(.allowBluetoothA2DP))
+    }
 }
