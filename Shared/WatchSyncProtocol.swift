@@ -108,10 +108,13 @@ struct WatchTransferLedger: Codable {
 
     /// Reopens slots when watchOS lost the save receipt. The Watch store is
     /// idempotent by track ID, so retrying is safe and a later inventory still
-    /// wins over this local recovery.
-    mutating func recoverStaleTransfers(now: Date, timeout: TimeInterval = 90) {
+    /// wins over this local recovery. A transfer still owned by the OS keeps its
+    /// attempt ID: forgetting it would orphan the completion callback and resend
+    /// a file that is still in flight.
+    mutating func recoverStaleTransfers(now: Date, outstanding: Set<UUID>, timeout: TimeInterval = 90) {
         for index in jobs.indices where [.transferring, .awaitingReceipt].contains(jobs[index].phase) {
             guard now.timeIntervalSince(jobs[index].updatedAt) >= timeout else { continue }
+            if let attempt = jobs[index].attemptID, outstanding.contains(attempt) { continue }
             jobs[index].phase = jobs[index].attempts < Self.maxAttempts ? .queued : .failed
             jobs[index].error = jobs[index].phase == .failed
                 ? "Watch receipt timed out after 3 attempts. Retry manually."

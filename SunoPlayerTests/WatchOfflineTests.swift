@@ -64,10 +64,24 @@ final class WatchOfflineTests: XCTestCase {
         stale.updatedAt = now.addingTimeInterval(-91)
         ledger.jobs = [stale]
 
-        ledger.recoverStaleTransfers(now: now)
+        ledger.recoverStaleTransfers(now: now, outstanding: [])
 
         XCTAssertEqual(ledger.jobs[0].phase, .queued)
         XCTAssertNil(ledger.jobs[0].attemptID)
+    }
+
+    func testStaleRecoveryKeepsATransferStillOwnedByTheOS() {
+        let now = Date(), attempt = UUID(), id = UUID()
+        var ledger = WatchTransferLedger()
+        var stale = job(id, phase: .transferring, attempt: attempt)
+        stale.attempts = 1
+        stale.updatedAt = now.addingTimeInterval(-91)
+        ledger.jobs = [stale]
+
+        ledger.recoverStaleTransfers(now: now, outstanding: [attempt])
+
+        XCTAssertEqual(ledger.jobs[0].phase, .transferring)
+        XCTAssertEqual(ledger.jobs[0].attemptID, attempt)
     }
 
     func testCancelledJobsDoNotResumeButLateReceiptIsTruthful() {
@@ -173,5 +187,31 @@ final class WatchOfflineTests: XCTestCase {
         XCTAssertEqual(store.revision, 1)
         try FileManager.default.removeItem(at: store.audioURL(track))
         XCTAssertTrue(try store.tracks().isEmpty)
+    }
+
+    func testRevisionPersistsBeforeACommitThatThenFails() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let tracks = root.appendingPathComponent("Tracks", isDirectory: true)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tracks.path)
+            try? FileManager.default.removeItem(at: root)
+        }
+        let store = try OfflineTrackStore(root: root)
+        let source = root.appendingPathComponent("temporary.mp3")
+        try Data([1, 2, 3]).write(to: source)
+        let track = OfflineTrack(id: UUID(), title: "Test", artist: nil, fileExtension: "mp3", byteCount: 3, sha256: try WatchWire.checksum(source))
+        let delivery = TrackDelivery(version: 1, attemptID: UUID(), targetWatch: store.watchID, track: track)
+
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: tracks.path)
+        XCTAssertThrowsError(try store.receive(source, delivery: delivery))
+
+        // A failed commit must not leave an older revision on disk: the phone rejects
+        // inventories older than the revision it already saw and would never resync.
+        let persisted = try WatchWire.read(Int.self, at: root.appendingPathComponent("revision.json"))
+        XCTAssertEqual(persisted, 1)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: tracks.path)
+        let restored = try OfflineTrackStore(root: root)
+        XCTAssertEqual(restored.revision, 1)
+        XCTAssertTrue(try restored.tracks().isEmpty)
     }
 }

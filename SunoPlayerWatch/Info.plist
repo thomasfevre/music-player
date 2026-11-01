@@ -27,6 +27,6 @@
 	<key>WKCompanionAppBundleIdentifier</key>
 	<string>com.thomas.sunoplayer</string>
 	<key>WKRunsIndependentlyOfCompanionApp</key>
-	<false/>
+	<true/>
 </dict>
 </plist>

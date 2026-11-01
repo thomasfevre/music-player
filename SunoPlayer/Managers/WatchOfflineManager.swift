@@ -128,7 +128,12 @@ final class WatchOfflineManager: NSObject, ObservableObject, WCSessionDelegate {
             guard let self, self.requestID == id else { return }
             self.requestID = nil
             self.ready = true
-            self.state.recoverStaleTransfers(now: Date())
+            let outstanding = Set((session.outstandingFileTransfers).compactMap { transfer -> UUID? in
+                guard let data = transfer.file.metadata?[WatchWire.payload] as? Data,
+                      let delivery = try? JSONDecoder().decode(TrackDelivery.self, from: data) else { return nil }
+                return delivery.attemptID
+            })
+            self.state.recoverStaleTransfers(now: Date(), outstanding: outstanding)
             guard self.save() else { return }
             self.report("Watch inventory timed out; starting a bounded bootstrap transfer.")
             self.updateConnection()

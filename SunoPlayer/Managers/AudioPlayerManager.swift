@@ -19,7 +19,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     @Published private(set) var activeQueue: [Track] = []
     @Published private(set) var autoDJSession: AutoDJSession?
     @Published var shuffleEnabled: Bool = false
-    @Published var repeatMode: RepeatMode = .off
+    @Published var repeatMode: RepeatMode = .all
 
     /// Seconds left on the sleep timer, or nil when it's off.
     @Published private(set) var sleepTimerRemaining: TimeInterval?
@@ -157,6 +157,13 @@ final class AudioPlayerManager: NSObject, ObservableObject {
                 isPlaying = false
             }
             updateNowPlayingPlaybackState()
+            return
+        }
+        // AutoDJ is a finite session: wrapping the base queue would replay tracks it has
+        // already consumed. Let the playlist repeat only when AutoDJ is not driving.
+        if autoDJSession != nil, queue.upcomingTracks.isEmpty {
+            stopAutoDJ()
+            pausePlayback()
             return
         }
         if let index = queue.next(), let track = queue.track(at: index) {
@@ -929,7 +936,7 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     @discardableResult
     private func activateSession() -> Bool {
         do {
-            try AVAudioSession.sharedInstance().setActive(true)
+            try AudioSessionController.activate()
             return true
         } catch {
             lastError = "Audio session activation failed: \(error.localizedDescription)"
@@ -951,7 +958,12 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         ) { [weak self] note in
             MainActor.assumeIsolated { self?.handleRouteChange(note) }
         }
-        sessionObservers = [interruption, route]
+        let reset = center.addObserver(
+            forName: AVAudioSession.mediaServicesWereResetNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.recoverAudioSession() }
+        }
+        sessionObservers = [interruption, route, reset]
     }
 
     private func handleInterruption(_ note: Notification) {
@@ -979,6 +991,19 @@ final class AudioPlayerManager: NSObject, ObservableObject {
         @unknown default:
             break
         }
+    }
+
+    /// Re-applies the background-capable category and resumes playback when the system
+    /// reset its audio services or when the app comes back to the foreground while it still
+    /// considers itself playing. Never starts playback on its own.
+    func reactivateAudioSessionIfPlaying() {
+        recoverAudioSession()
+    }
+
+    private func recoverAudioSession() {
+        guard isPlaying, player != nil, activateSession() else { return }
+        if player?.rate == 0 { player?.play() }
+        updateNowPlayingPlaybackState()
     }
 
     private func handleRouteChange(_ note: Notification) {
