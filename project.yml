@@ -18,18 +18,21 @@ targets:
     sources:
       - path: SunoPlayer
       - path: Shared
-    dependencies:
-      - target: SunoPlayerWatch
     settings:
       base:
+        PRODUCT_NAME: SunoPlayer
         PRODUCT_BUNDLE_IDENTIFIER: com.thomas.sunoplayer
         DEVELOPMENT_TEAM: VYGBHQ4ZDQ
         INFOPLIST_FILE: SunoPlayer/Info.plist
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         GENERATE_INFOPLIST_FILE: NO
         ENABLE_PREVIEWS: YES
         TARGETED_DEVICE_FAMILY: "1"
         ASSETCATALOG_COMPILER_GENERATE_ASSET_SYMBOLS: NO
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+      configs:
+        Debug:
+          ENABLE_TESTABILITY: YES
     dependencies:
       - target: SunoPlayerWatch
         embed: true
@@ -46,7 +49,11 @@ targets:
       - target: SunoPlayer
     settings:
       base:
+        PRODUCT_NAME: SunoPlayerTests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/SunoPlayer.app/SunoPlayer"
+        BUNDLE_LOADER: "$(TEST_HOST)"
         PRODUCT_BUNDLE_IDENTIFIER: com.thomas.sunoplayer.tests
+        SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
         GENERATE_INFOPLIST_FILE: YES
   SunoPlayerWatch:
     type: application
@@ -69,6 +76,7 @@ targets:
           - audio
     settings:
       base:
+        PRODUCT_NAME: SunoPlayerWatch
         PRODUCT_BUNDLE_IDENTIFIER: com.thomas.sunoplayer.watchkitapp
         DEVELOPMENT_TEAM: VYGBHQ4ZDQ
         GENERATE_INFOPLIST_FILE: YES
@@ -76,5 +84,7 @@ targets:
         INFOPLIST_KEY_WKWatchOnly: NO
         INFOPLIST_KEY_WKRunsIndependentlyOfCompanionApp: YES
         INFOPLIST_KEY_CFBundleDisplayName: SunoPlayer
+        SUPPORTED_PLATFORMS: "watchos watchsimulator"
+        SKIP_INSTALL: YES
         TARGETED_DEVICE_FAMILY: "4"
     scheme: {}
