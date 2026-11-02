@@ -40,11 +40,15 @@ final class AudioPolicyTests: XCTestCase {
         XCTAssertFalse(CrossfadePolicy.shouldBegin(position: 99, duration: 100, configured: 3, hasNextTrack: true, alreadyStarted: true))
     }
 
+    @MainActor
     func testAudioSessionConfiguresBackgroundCapablePlayback() throws {
         try AudioSessionController.configure()
         let session = AVAudioSession.sharedInstance()
         XCTAssertEqual(session.category, .playback)
         XCTAssertEqual(session.mode, .default)
         XCTAssertTrue(session.categoryOptions.contains(.allowBluetoothA2DP))
+        // Activating twice must not reconfigure a live session (OSStatus -50 regression).
+        XCTAssertNoThrow(try AudioSessionController.activate())
+        XCTAssertNoThrow(try AudioSessionController.activate())
     }
 }
