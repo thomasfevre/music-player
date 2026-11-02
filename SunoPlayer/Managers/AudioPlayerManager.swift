@@ -973,7 +973,6 @@ final class AudioPlayerManager: NSObject, ObservableObject {
 
         switch type {
         case .began:
-            AudioSessionController.sessionBecameInactive()
             wasPlayingBeforeInterruption = isPlaying
             if isPlaying {
                 pausePlayback()
@@ -1002,7 +1001,6 @@ final class AudioPlayerManager: NSObject, ObservableObject {
     }
 
     private func recoverAudioSession() {
-        AudioSessionController.sessionWasReset()
         guard isPlaying, player != nil, activateSession() else { return }
         if player?.rate == 0 { player?.play() }
         updateNowPlayingPlaybackState()
