@@ -57,13 +57,23 @@ final class FolderPlaylistImportTests: XCTestCase {
         XCTAssertEqual(plan.totalTracks, 1)
     }
 
-    func testPlaylistNameCollisionsGetSuffix() {
+    func testExistingPlaylistNameIsFlaggedAsCollision() {
         let plan = FolderImportPlanner.plan(
             scannedFiles: [file("Rock/a.mp3"), file("Rock2/b.mp3")],
             existingLibraryFileNames: [],
             existingPlaylistNames: ["Rock"]
         )
-        XCTAssertEqual(Set(plan.playlists.map(\.name)), ["Rock (2)", "Rock2"])
+        let rock = plan.playlists.first { $0.name == "Rock" }
+        XCTAssertEqual(rock?.collidesWithExistingPlaylist, true)
+        XCTAssertEqual(plan.collidingPlaylistNames, ["Rock"])
+    }
+
+    func testNewFolderNamesCollidingWithEachOtherStillGetSuffix() {
+        let plan = FolderImportPlanner.plan(
+            scannedFiles: [file("A/Rock/a.mp3"), file("B/Rock/b.mp3")],
+            existingLibraryFileNames: []
+        )
+        XCTAssertEqual(plan.playlists.map(\.name), ["Rock", "Rock (2)"])
     }
 
     func testEmptyFolderProducesEmptyPlan() {

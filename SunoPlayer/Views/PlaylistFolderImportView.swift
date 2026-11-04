@@ -16,9 +16,21 @@ struct PlaylistFolderImportView: View {
     @State private var importTask: Task<Void, Never>?
     @State private var isCancelled = false
     @State private var scopedFolder: URL?
+    @State private var collisionStrategy: CollisionStrategy = .merge
 
     private enum Phase: Equatable {
         case pickFolder, scanning, summary, importing, finished
+    }
+
+    private enum CollisionStrategy: String, CaseIterable, Identifiable {
+        case merge, createNew
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .merge: return "Merge into existing"
+            case .createNew: return "Create new playlists"
+            }
+        }
     }
 
     var body: some View {
@@ -56,13 +68,31 @@ struct PlaylistFolderImportView: View {
                                 LabeledContent("Non-audio files ignored", value: "\(plan.ignoredFileCount)")
                             }
                         }
+                        if !plan.collidingPlaylistNames.isEmpty {
+                            Section {
+                                Picker("On name collision", selection: $collisionStrategy) {
+                                    ForEach(CollisionStrategy.allCases) { strategy in
+                                        Text(strategy.title).tag(strategy)
+                                    }
+                                }
+                                ForEach(plan.collidingPlaylistNames, id: \.self) { name in
+                                    Text(name).foregroundStyle(.secondary)
+                                }
+                            } header: {
+                                Text("Existing playlists")
+                            } footer: {
+                                Text(collisionStrategy == .merge
+                                     ? "Tracks are added to the existing playlist."
+                                     : "A new playlist is created next to the existing one.")
+                            }
+                        }
                         if plan.isEmpty {
                             Section {
                                 Text("No new audio files were found in this folder.")
                                     .foregroundStyle(.secondary)
                             }
                         } else {
-                            Section("Playlists to create") {
+                            Section("Playlists") {
                                 ForEach(plan.playlists) { playlist in
                                     HStack {
                                         VStack(alignment: .leading) {
@@ -195,7 +225,16 @@ struct PlaylistFolderImportView: View {
                 let trackIDs = playlistPlan.files.compactMap { mapping[$0.url]?.id }
                 if !trackIDs.isEmpty {
                     await MainActor.run {
-                        _ = playlists.createPlaylist(name: playlistPlan.name, trackIDs: trackIDs)
+                        if playlistPlan.collidesWithExistingPlaylist,
+                           collisionStrategy == .merge,
+                           let existing = playlists.playlist(named: playlistPlan.name) {
+                            playlists.addTracks(trackIDs, to: existing)
+                        } else {
+                            let name = playlistPlan.collidesWithExistingPlaylist
+                                ? playlists.availableName(for: playlistPlan.name)
+                                : playlistPlan.name
+                            _ = playlists.createPlaylist(name: name, trackIDs: trackIDs)
+                        }
                     }
                     created += 1
                     imported += trackIDs.count
@@ -204,7 +243,7 @@ struct PlaylistFolderImportView: View {
                 let current = completed
                 await MainActor.run {
                     progress = Double(current) / total
-                    detail = "\(created) playlist\(created == 1 ? "" : "s"), \(imported) track\(imported == 1 ? "" : "s")"
+                    detail = "\(created) playlist\(created == 1 ? "" : "s") processed, \(imported) track\(imported == 1 ? "" : "s")"
                 }
             }
             if let scopedFolder {
@@ -213,9 +252,9 @@ struct PlaylistFolderImportView: View {
             }
             await MainActor.run {
                 if isCancelled || Task.isCancelled {
-                    detail = "Import cancelled. \(created) playlist\(created == 1 ? "" : "s") created."
+                    detail = "Import cancelled. \(created) playlist\(created == 1 ? "" : "s") processed."
                 } else {
-                    detail = "\(created) playlist\(created == 1 ? "" : "s") created with \(imported) track\(imported == 1 ? "" : "s")."
+                    detail = "\(created) playlist\(created == 1 ? "" : "s") processed with \(imported) track\(imported == 1 ? "" : "s")."
                 }
                 phase = .finished
             }

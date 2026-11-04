@@ -18,6 +18,8 @@ struct FolderPlaylistPlan: Identifiable, Equatable {
     let id = UUID()
     let name: String
     let files: [FolderAudioFile]
+    /// True when the library already has a playlist with this name.
+    let collidesWithExistingPlaylist: Bool
 }
 
 struct FolderImportPlan: Equatable {
@@ -27,6 +29,9 @@ struct FolderImportPlan: Equatable {
 
     var totalTracks: Int { playlists.reduce(0) { $0 + $1.files.count } }
     var isEmpty: Bool { playlists.isEmpty }
+    var collidingPlaylistNames: [String] {
+        playlists.filter(\.collidesWithExistingPlaylist).map(\.name)
+    }
 }
 
 enum FolderAudioFormat {
@@ -82,20 +87,23 @@ enum FolderImportPlanner {
             grouped[folder, default: []].append(file)
         }
 
-        var usedNames = Set(existingPlaylistNames.map { $0.lowercased() })
+        let existingNames = Set(existingPlaylistNames.map { $0.lowercased() })
+        var usedNames: Set<String> = []
         var playlists: [FolderPlaylistPlan] = []
         for folder in folderOrder {
             guard let files = grouped[folder], !files.isEmpty else { continue }
             let baseName = folder.isEmpty
                 ? rootFolderName
                 : (folder as NSString).lastPathComponent
-            let name = uniqueName(baseName, used: &usedNames)
+            let collides = existingNames.contains(baseName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
+            let name = collides ? baseName : uniqueName(baseName, used: &usedNames)
             playlists.append(
                 FolderPlaylistPlan(
                     name: name,
                     files: files.map {
                         FolderAudioFile(relativePath: $0.relativePath, url: $0.url, byteCount: $0.byteCount)
-                    }
+                    },
+                    collidesWithExistingPlaylist: collides
                 )
             )
         }
