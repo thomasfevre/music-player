@@ -3,6 +3,7 @@ import AVFoundation
 
 @main
 struct SunoPlayerApp: App {
+    @UIApplicationDelegateAdaptor(SunoPlayerAppDelegate.self) private var appDelegate
     @StateObject private var library = MusicLibraryManager()
     @StateObject private var player = AudioPlayerManager()
     @StateObject private var playlists = PlaylistManager()
