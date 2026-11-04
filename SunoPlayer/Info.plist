@@ -11,6 +11,10 @@
 	<false/>
 
 	<!-- Required for background audio playback -->
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array>
+		<string>com.thomas.sunoplayer.folder-import</string>
+	</array>
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>audio</string>

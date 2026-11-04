@@ -1,22 +1,21 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Scans a folder, shows what will be created, then imports the audio and user playlists.
+/// Scans a folder, shows what will be created, then hands the work to the durable importer.
 struct PlaylistFolderImportView: View {
     @EnvironmentObject private var library: MusicLibraryManager
     @EnvironmentObject private var playlists: PlaylistManager
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var importer = FolderImportCoordinator.shared
 
     @State private var phase: Phase = .pickFolder
     @State private var showFolderPicker = false
     @State private var plan: FolderImportPlan?
-    @State private var progress = 0.0
-    @State private var detail = ""
+    @State private var folderURL: URL?
     @State private var errorMessage: String?
-    @State private var importTask: Task<Void, Never>?
-    @State private var isCancelled = false
-    @State private var scopedFolder: URL?
     @State private var collisionStrategy: CollisionStrategy = .merge
+    @State private var scopedFolder: URL?
+    @State private var scanTask: Task<Void, Never>?
 
     private enum Phase: Equatable {
         case pickFolder, scanning, summary, importing, finished
@@ -39,9 +38,7 @@ struct PlaylistFolderImportView: View {
                 switch phase {
                 case .pickFolder:
                     Section {
-                        Button {
-                            showFolderPicker = true
-                        } label: {
+                        Button { showFolderPicker = true } label: {
                             Label("Choose a folder", systemImage: "folder")
                         }
                     } footer: {
@@ -57,84 +54,22 @@ struct PlaylistFolderImportView: View {
                     }
 
                 case .summary:
-                    if let plan {
-                        Section("Summary") {
-                            LabeledContent("Playlists", value: "\(plan.playlists.count)")
-                            LabeledContent("Tracks to import", value: "\(plan.totalTracks)")
-                            if !plan.duplicateFileNames.isEmpty {
-                                LabeledContent("Already imported", value: "\(plan.duplicateFileNames.count)")
-                            }
-                            if plan.ignoredFileCount > 0 {
-                                LabeledContent("Non-audio files ignored", value: "\(plan.ignoredFileCount)")
-                            }
-                        }
-                        if !plan.collidingPlaylistNames.isEmpty {
-                            Section {
-                                Picker("On name collision", selection: $collisionStrategy) {
-                                    ForEach(CollisionStrategy.allCases) { strategy in
-                                        Text(strategy.title).tag(strategy)
-                                    }
-                                }
-                                ForEach(plan.collidingPlaylistNames, id: \.self) { name in
-                                    Text(name).foregroundStyle(.secondary)
-                                }
-                            } header: {
-                                Text("Existing playlists")
-                            } footer: {
-                                Text(collisionStrategy == .merge
-                                     ? "Tracks are added to the existing playlist."
-                                     : "A new playlist is created next to the existing one.")
-                            }
-                        }
-                        if plan.isEmpty {
-                            Section {
-                                Text("No new audio files were found in this folder.")
-                                    .foregroundStyle(.secondary)
-                            }
-                        } else {
-                            Section("Playlists") {
-                                ForEach(plan.playlists) { playlist in
-                                    HStack {
-                                        VStack(alignment: .leading) {
-                                            Text(playlist.name)
-                                            Text("\(playlist.files.count) track\(playlist.files.count == 1 ? "" : "s")")
-                                                .font(.caption)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                        Spacer()
-                                    }
-                                }
-                            }
-                        }
-                    }
-
+                    summarySections
                 case .importing:
-                    Section {
-                        VStack(alignment: .leading, spacing: 8) {
-                            ProgressView(value: progress)
-                            Text(detail).font(.caption).foregroundStyle(.secondary)
-                        }
-                    }
-
+                    importingSections
                 case .finished:
-                    Section {
-                        Label("Import finished", systemImage: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                        Text(detail)
-                    }
+                    finishedSections
                 }
 
                 if let errorMessage {
-                    Section {
-                        Text(errorMessage).foregroundStyle(.red)
-                    }
+                    Section { Text(errorMessage).foregroundStyle(.red) }
                 }
             }
             .navigationTitle("Import Playlists")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button(phase == .importing ? "Cancel" : "Close") {
-                        if phase == .importing { cancelImport() } else { dismiss() }
+                        if phase == .importing { importer.cancel() } else { dismiss() }
                     }
                 }
                 if phase == .summary, let plan, !plan.isEmpty {
@@ -164,19 +99,133 @@ struct PlaylistFolderImportView: View {
             }
         }
         .preferredColorScheme(.dark)
+        .onAppear {
+            if importer.isRunning {
+                phase = .importing
+            } else if importer.summary != nil {
+                phase = .finished
+            }
+        }
+        .onChange(of: importer.summary) { _, newValue in
+            if newValue != nil { phase = .finished }
+        }
         .onDisappear {
-            importTask?.cancel()
+            scanTask?.cancel()
             scopedFolder?.stopAccessingSecurityScopedResource()
             scopedFolder = nil
+        }
+    }
+
+    @ViewBuilder
+    private var summarySections: some View {
+        if let plan {
+            Section("Summary") {
+                LabeledContent("Playlists", value: "\(plan.playlists.count)")
+                LabeledContent("Tracks to import", value: "\(plan.totalTracks)")
+                if !plan.duplicateFileNames.isEmpty {
+                    LabeledContent("Already imported", value: "\(plan.duplicateFileNames.count)")
+                }
+                if plan.ignoredFileCount > 0 {
+                    LabeledContent("Non-audio files ignored", value: "\(plan.ignoredFileCount)")
+                }
+            }
+            if !plan.collidingPlaylistNames.isEmpty {
+                Section {
+                    Picker("On name collision", selection: $collisionStrategy) {
+                        ForEach(CollisionStrategy.allCases) { strategy in
+                            Text(strategy.title).tag(strategy)
+                        }
+                    }
+                    ForEach(plan.collidingPlaylistNames, id: \.self) { name in
+                        Text(name).foregroundStyle(.secondary)
+                    }
+                } header: {
+                    Text("Existing playlists")
+                } footer: {
+                    Text(collisionStrategy == .merge
+                         ? "Tracks are added to the existing playlist."
+                         : "A new playlist is created next to the existing one.")
+                }
+            }
+            if plan.isEmpty {
+                Section {
+                    Text("No new audio files were found in this folder.")
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Section("Playlists") {
+                    ForEach(plan.playlists) { playlist in
+                        VStack(alignment: .leading) {
+                            Text(playlist.name)
+                            Text("\(playlist.files.count) track\(playlist.files.count == 1 ? "" : "s")")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private var displayedTotal: Int { plan?.totalTracks ?? importer.total }
+
+    private var progress: Double {
+        guard displayedTotal > 0 else { return 0 }
+        return min(1, Double(importer.processed) / Double(displayedTotal))
+    }
+
+    @ViewBuilder
+    private var importingSections: some View {
+        Section {
+            VStack(alignment: .leading, spacing: 8) {
+                ProgressView(value: progress)
+                Text("\(importer.processed) / \(displayedTotal) files")
+                    .font(.caption)
+                Text(importer.status).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var finishedSections: some View {
+        if let summary = importer.summary {
+            Section {
+                Label("Import finished", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+                LabeledContent("Playlists created", value: "\(summary.playlistsCreated)")
+                LabeledContent("Playlists merged", value: "\(summary.playlistsMerged)")
+                LabeledContent("Tracks imported", value: "\(summary.tracksImported)")
+                LabeledContent("Duplicates skipped", value: "\(summary.duplicates)")
+                LabeledContent("Non-audio ignored", value: "\(summary.ignored)")
+                if summary.failures > 0 {
+                    LabeledContent("Download/import failures", value: "\(summary.failures)")
+                }
+            }
+            if !summary.emptyPlaylists.isEmpty {
+                Section("Not created") {
+                    ForEach(summary.emptyPlaylists, id: \.self) { name in
+                        Text("\(name) — no importable tracks.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            if !summary.failureReasons.isEmpty {
+                Section("Details") {
+                    ForEach(summary.failureReasons.prefix(20), id: \.self) { reason in
+                        Text(reason).font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+            }
         }
     }
 
     private func scan(_ url: URL) {
         phase = .scanning
         errorMessage = nil
+        folderURL = url
         let existingNames = Set(library.tracks.map(\.fileName))
         let existingPlaylists = Set(playlists.playlists.map(\.name))
-        importTask = Task {
+        scanTask = Task {
             if url.startAccessingSecurityScopedResource() {
                 scopedFolder = url
             }
@@ -205,64 +254,16 @@ struct PlaylistFolderImportView: View {
     }
 
     private func startImport(_ plan: FolderImportPlan) {
+        guard let folderURL else { return }
+        importer.start(
+            plan: plan,
+            folderURL: folderURL,
+            mergeIntoExisting: collisionStrategy == .merge,
+            library: library,
+            playlists: playlists,
+            duplicates: plan.duplicateFileNames.count,
+            ignored: plan.ignoredFileCount
+        )
         phase = .importing
-        progress = 0
-        isCancelled = false
-        let total = Double(max(1, plan.playlists.count))
-        importTask = Task {
-            var completed = 0
-            var created = 0
-            var imported = 0
-            for playlistPlan in plan.playlists {
-                if Task.isCancelled || isCancelled { break }
-                let urls = playlistPlan.files.map(\.url)
-                let mapping = await library.importTracksMapped(from: urls)
-                guard !mapping.isEmpty else {
-                    completed += 1
-                    await MainActor.run { progress = Double(completed) / total }
-                    continue
-                }
-                let trackIDs = playlistPlan.files.compactMap { mapping[$0.url]?.id }
-                if !trackIDs.isEmpty {
-                    await MainActor.run {
-                        if playlistPlan.collidesWithExistingPlaylist,
-                           collisionStrategy == .merge,
-                           let existing = playlists.playlist(named: playlistPlan.name) {
-                            playlists.addTracks(trackIDs, to: existing)
-                        } else {
-                            let name = playlistPlan.collidesWithExistingPlaylist
-                                ? playlists.availableName(for: playlistPlan.name)
-                                : playlistPlan.name
-                            _ = playlists.createPlaylist(name: name, trackIDs: trackIDs)
-                        }
-                    }
-                    created += 1
-                    imported += trackIDs.count
-                }
-                completed += 1
-                let current = completed
-                await MainActor.run {
-                    progress = Double(current) / total
-                    detail = "\(created) playlist\(created == 1 ? "" : "s") processed, \(imported) track\(imported == 1 ? "" : "s")"
-                }
-            }
-            if let scopedFolder {
-                scopedFolder.stopAccessingSecurityScopedResource()
-                self.scopedFolder = nil
-            }
-            await MainActor.run {
-                if isCancelled || Task.isCancelled {
-                    detail = "Import cancelled. \(created) playlist\(created == 1 ? "" : "s") processed."
-                } else {
-                    detail = "\(created) playlist\(created == 1 ? "" : "s") processed with \(imported) track\(imported == 1 ? "" : "s")."
-                }
-                phase = .finished
-            }
-        }
-    }
-
-    private func cancelImport() {
-        isCancelled = true
-        importTask?.cancel()
     }
 }
