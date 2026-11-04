@@ -11,6 +11,7 @@ struct PlaylistsView: View {
     @State private var showCreateAlert = false
     @State private var showSmartEditor = false
     @State private var showImporter = false
+    @State private var showFolderImport = false
     @State private var newName = ""
     @State private var path: [UUID] = []
     @State private var importMessage: String?
@@ -47,6 +48,11 @@ struct PlaylistsView: View {
                         } label: {
                             Label("Import M3U", systemImage: "square.and.arrow.down")
                         }
+                        Button {
+                            showFolderImport = true
+                        } label: {
+                            Label("Import Playlists from Folder", systemImage: "folder.badge.plus")
+                        }
                     } label: {
                         Image(systemName: "plus")
                     }
@@ -78,6 +84,11 @@ struct PlaylistsView: View {
                 Button("OK") { playlists.clearError() }
             } message: {
                 Text(playlists.lastError ?? "")
+            }
+            .sheet(isPresented: $showFolderImport) {
+                PlaylistFolderImportView()
+                    .environmentObject(library)
+                    .environmentObject(playlists)
             }
             .sheet(isPresented: $showSmartEditor) {
                 SmartPlaylistEditorView { created in path.append(created.id) }

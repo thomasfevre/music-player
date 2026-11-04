@@ -261,6 +261,7 @@ final class MusicLibraryManager: ObservableObject {
 
     nonisolated private struct ImportOutcome: Sendable {
         let tracks: [Track]
+        let sources: [URL]
         let errors: [String]
     }
 
@@ -271,6 +272,7 @@ final class MusicLibraryManager: ObservableObject {
     ) async -> ImportOutcome {
         let fm = FileManager.default
         var result: [Track] = []
+        var sources: [URL] = []
         var errors: [String] = []
         var seen = existingNames
 
@@ -300,12 +302,39 @@ final class MusicLibraryManager: ObservableObject {
                           fileName: fileName,
                           duration: meta.duration, dateImported: Date(), artworkFileName: artworkFileName)
                 )
+                sources.append(url)
                 seen.insert(fileName)
             } catch {
                 errors.append("\(fileName): \(error.localizedDescription)")
             }
         }
-        return ImportOutcome(tracks: result, errors: errors)
+        return ImportOutcome(tracks: result, sources: sources, errors: errors)
+    }
+
+    /// Imports files and returns the resulting library track keyed by its original URL, so a
+    /// caller can build playlists from the imported copies.
+    func importTracksMapped(from urls: [URL]) async -> [URL: Track] {
+        guard !urls.isEmpty, !isImporting else { return [:] }
+        isImporting = true
+        let existingNames = Set(tracks.map(\.fileName))
+        let outcome = await Self.processImports(
+            urls: urls,
+            existingNames: existingNames,
+            docDir: Track.documentsDirectory
+        )
+        var importedTracks = outcome.tracks
+        importedTracks.indices.forEach { ArtworkPreferences.apply(to: &importedTracks[$0]) }
+        tracks.append(contentsOf: importedTracks)
+        if !importedTracks.isEmpty { saveLibrary() }
+        if !outcome.errors.isEmpty {
+            lastError = outcome.errors.joined(separator: "\n")
+        }
+        isImporting = false
+        var mapping: [URL: Track] = [:]
+        for (source, track) in zip(outcome.sources, importedTracks) {
+            mapping[source] = track
+        }
+        return mapping
     }
 
     // MARK: - Delete

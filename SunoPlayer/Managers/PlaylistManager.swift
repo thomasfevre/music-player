@@ -50,6 +50,21 @@ final class PlaylistManager: ObservableObject {
         return playlist
     }
 
+    func playlist(named name: String) -> Playlist? {
+        let key = name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return playlists.first { $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == key }
+    }
+
+    /// Returns `name`, or "name (2)", "name (3)"… if a playlist already uses that name.
+    func availableName(for name: String) -> String {
+        let base = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let candidate = base.isEmpty ? "Imported Playlist" : base
+        guard playlist(named: candidate) != nil else { return candidate }
+        var index = 2
+        while playlist(named: "\(candidate) (\(index))") != nil { index += 1 }
+        return "\(candidate) (\(index))"
+    }
+
     func rename(_ playlist: Playlist, to name: String) {
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty, let index = indexOf(playlist) else { return }
