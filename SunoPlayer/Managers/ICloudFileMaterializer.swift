@@ -54,6 +54,22 @@ enum ICloudFileMaterializer {
         )
     }
 
+    /// Starts downloads for a batch of files with bounded concurrency, so a playlist of
+    /// 76 placeholders downloads in parallel instead of one 300 s wait per file.
+    static func prefetch(_ urls: [URL], concurrency: Int = 4, timeout: TimeInterval = 120) async {
+        let batchSize = max(1, concurrency)
+        var index = 0
+        while index < urls.count {
+            let batch = Array(urls[index..<min(index + batchSize, urls.count)])
+            await withTaskGroup(of: Void.self) { group in
+                for url in batch {
+                    group.addTask { try? await ensureDownloaded(url, timeout: timeout) }
+                }
+            }
+            index += batchSize
+        }
+    }
+
     static func ensureDownloaded(_ url: URL, timeout: TimeInterval) async throws {
         let fm = FileManager.default
         var values = try? url.resourceValues(forKeys: downloadKeys)

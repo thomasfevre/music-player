@@ -412,6 +412,13 @@ struct PlaylistDetailView: View {
         .scrollContentBackground(.hidden)
     }
 
+    /// Starts the playlist in shuffle mode, which is the default way Thomas listens.
+    private func startPlaylist() {
+        guard let first = visibleTracks.randomElement() ?? visibleTracks.first else { return }
+        player.shuffleEnabled = true
+        player.play(first, in: visibleTracks, source: .playlist)
+    }
+
     private var summary: some View {
         HStack(spacing: 14) {
             if let playlist {
@@ -439,6 +446,17 @@ struct PlaylistDetailView: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            Button {
+                startPlaylist()
+            } label: {
+                Label("Shuffle Play", systemImage: "shuffle")
+                    .labelStyle(.iconOnly)
+                    .font(.title2)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.purple)
+            .disabled(visibleTracks.isEmpty)
+            .accessibilityLabel("Shuffle Play")
             if let rule = playlist?.smartRule {
                 Label(rule.summary, systemImage: "wand.and.stars")
                     .font(.caption)
@@ -458,11 +476,11 @@ struct PlaylistDetailView: View {
         }
         ToolbarItem(placement: .topBarTrailing) {
             Button {
-                guard let first = visibleTracks.first else { return }
-                player.play(first, in: visibleTracks, source: .playlist)
+                startPlaylist()
             } label: {
-                Image(systemName: "play.fill")
+                Image(systemName: "shuffle")
             }
+            .accessibilityLabel("Shuffle Play")
             .disabled(visibleTracks.isEmpty)
         }
         ToolbarItem(placement: .topBarTrailing) {

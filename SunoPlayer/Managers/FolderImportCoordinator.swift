@@ -41,6 +41,7 @@ final class FolderImportCoordinator: ObservableObject {
         duplicates: Int,
         ignored: Int
     ) {
+        if isRunning, task?.isCancelled == true { isRunning = false }
         guard !isRunning else { return }
         configure(library: library, playlists: playlists)
         self.folderURL = folderURL
@@ -79,6 +80,15 @@ final class FolderImportCoordinator: ObservableObject {
                 mergeIntoExisting: mergeIntoExisting
             )
         }
+    }
+
+    /// Clears the previous run so reopening the sheet starts a new import.
+    func clearSummary() {
+        guard !isRunning else { return }
+        summary = nil
+        processed = 0
+        total = 0
+        status = ""
     }
 
     func cancel() {
@@ -137,13 +147,17 @@ final class FolderImportCoordinator: ObservableObject {
             var importedFiles = 0
             var playlistFailures = 0
 
+            let playlistURLs = spec.relativePaths.map { root.appendingPathComponent($0) }
+            status = "iCloud \(spec.name) — preparing \(playlistURLs.count) file(s)…"
+            await ICloudFileMaterializer.prefetch(playlistURLs)
+
             for relativePath in spec.relativePaths {
                 if Task.isCancelled || cancelRequested { break }
                 let url = root.appendingPathComponent(relativePath)
                 let fileName = url.lastPathComponent
                 status = "iCloud \(fileName)…"
                 do {
-                    let local = try await ICloudFileMaterializer.materialize(url, in: tempDirectory)
+                    let local = try await ICloudFileMaterializer.materialize(url, in: tempDirectory, timeout: 60)
                     status = "Importing \(fileName)…"
                     let mapping = await library?.importTracksMapped(from: [local]) ?? [:]
                     if let track = mapping[local] {

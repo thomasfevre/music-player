@@ -102,8 +102,9 @@ struct PlaylistFolderImportView: View {
         .onAppear {
             if importer.isRunning {
                 phase = .importing
-            } else if importer.summary != nil {
-                phase = .finished
+            } else {
+                importer.clearSummary()
+                phase = .pickFolder
             }
         }
         .onChange(of: importer.summary) { _, newValue in
